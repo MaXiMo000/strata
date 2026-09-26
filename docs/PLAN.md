@@ -61,13 +61,23 @@ Goal: type any Manhattan address and get **≥ 4 distinct years** of real histor
       `https://allmaps.xyz/{z}/{x}/{y}.png?url=<annotation-url>` (check the current URL format in the Allmaps docs).
       GCPs come from the annotation; compute `rmse_m`.
 
-### 1e. UI polish
-- [ ] Swipe comparison (drag a vertical divider between then/now), using a second map + clip, or `maplibre-gl-compare`
-- [ ] Layer picker when several maps share a year (from `/api/layers`); show error + license badges
-- [ ] URL state: `?q=<address>&year=1916&lat=&lon=&z=` so links are shareable
-- [ ] Replace OSM tiles with a provider whose terms allow production use (MapTiler / Stadia / Protomaps self-hosted PMTiles)
+### 1e. Design build. **The UI must be striking, not AI-looking.** The spec is docs/DESIGN.md.
+- [ ] `web/` becomes **Vite + TypeScript** (no UI framework; MapLibre does the heavy lifting). FastAPI serves `web/dist`; Vite proxies `/api` in dev
+- [ ] Tokens (`web/src/tokens.css`): the six colours with their measured contrast ratios in comments, a type scale, 4px spacing, motion, z-layers.
+      Fonts self-hosted: `@fontsource-variable/fraunces`, `@fontsource/ibm-plex-mono`, `@fontsource/instrument-sans`
+- [ ] Custom dark vector base style `web/style/base.json` (Protomaps PMTiles or MapTiler; production-licensed; replaces OSM raster tiles),
+      with a `B` toggle to hide modern labels
+- [ ] Arrival screen (slow drift, serif question, sample addresses)
+- [ ] Year numeral (Fraunces, huge, odometer roll) + **the ruler** (notches only at available years; ARIA slider; `←/→` jumps)
+- [ ] Layer crossfade (two raster layers, 400 ms) + preloading of neighbouring years; the pin plus an accuracy halo sized by `rmse_m`
+- [ ] Layer card (serif title + mono readouts + source/license) and a picker when several maps share a year
+- [ ] Swipe compare (`C`) with the `1916 │ 2026` handle
+- [ ] URL state `?q=&lat=&lon=&z=&year=&swipe=`; PNG poster export (`P`)
+- [ ] Mobile layout (360/390, landscape, safe areas); keyboard map + `?` overlay
+- [ ] Screenshots at 390 and 1440 in `docs/screenshots/1e/`, self-reviewed against the DESIGN.md anti-"AI look" list. Fix anything that fails before ticking
 
-**Acceptance:** 5 random Manhattan addresses each show ≥ 4 years; every layer shows its error + license; no CORS errors.
+**Acceptance:** 5 random Manhattan addresses each show ≥ 4 years; every layer shows its error + license; no CORS errors;
+Lighthouse Accessibility 100 / Performance ≥ 90; nothing from the anti-"AI look" list present.
 
 ---
 
@@ -92,7 +102,7 @@ Goal: building-level detail (the "what stood at this address" answer).
 - [ ] OpenHistoricalMap: query features at the point with `start_date <= year <= end_date` (Overpass endpoint for OHM)
 - [ ] Rank facts: buildings > organisations > broadcast stations (use Wikidata P31 instance-of classes; filter radio
       stations etc. out)
-- [ ] "Timeline" drawer: every fact for the point on one strip, 1850 → today
+- [ ] **Core sample** drawer (`I`) per DESIGN.md: vertical lifespan bands, a `--survey` year line, click a band → jump the ruler
 
 ---
 

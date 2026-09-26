@@ -7,6 +7,7 @@ Time-travel map: address + year slider → aligned historical map layers + "what
 2. `docs/ARCHITECTURE.md`: system, data model, ranking, tiles.
 3. `docs/GEOREFERENCING.md`: GCPs, transforms, error metrics, the auto-georeferencing research plan.
 4. `docs/DATA_SOURCES.md`: collections, endpoints, licenses.
+5. `docs/DESIGN.md`: **the UI spec. The bar is striking and not AI-looking**, matching the author's portfolio/tidewatch/afterglow.
 
 ## Commands
 ```bash
@@ -24,7 +25,7 @@ or apply an ALTER by hand.
 - `strata/georef.py`: affine fit, residuals (ground m), `loo_rmse_m`, `worst_gcp`, `gdal_commands`
 - `strata/whatwashere.py`: Wikidata SPARQL around a point, filtered by year
 - `strata/ingest/*.py`: (Phase 1) one module per source, run as `python -m strata.ingest <source>`
-- `web/index.html`: MapLibre single page, no build step
+- `web/index.html`: MapLibre scaffold page; rebuilt as Vite + TypeScript in Phase 1e (spec: docs/DESIGN.md)
 - `schema.sql`: PostGIS schema
 
 ## Rules
@@ -34,5 +35,7 @@ or apply an ALTER by hand.
 - Pilot city is NYC. Don't ingest other cities until Phase 1 acceptance passes.
 - Be polite to sources: cache responses, send a descriptive User-Agent, rate-limit (~1 req/s), and never bulk-download
   what we can reference by URL instead.
+- UI work follows docs/DESIGN.md exactly: tokens only (no raw hex in components), self-hosted fonts, AA contrast, keyboard, and
+  reduced motion. Check the result in the browser at 390 and 1440 and review it against the anti-"AI look" list before ticking.
 - Tests never hit the network or require Docker (DB tests skip without `DATABASE_URL`).
 - Commit after each ticked task with a clear message; push to `origin main`.

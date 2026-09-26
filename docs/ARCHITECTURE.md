@@ -63,8 +63,9 @@ In production, put a CDN (Cloudflare) in front of TiTiler and cache tiles aggres
 
 ## Frontend
 
-A single page (`web/index.html`) with no build step until it hurts. Planned additions: swipe compare, layer picker, URL state.
-When it outgrows one file, move to Vite + vanilla TS (not React: MapLibre does the heavy lifting).
+Today it's a single scaffold page (`web/index.html`). Phase 1e rebuilds it as **Vite + TypeScript** (not React: MapLibre does the heavy
+lifting) to the spec in `docs/DESIGN.md`: a custom dark vector base style, the ruler slider, crossfading layers, swipe compare,
+and the core-sample drawer.
 
 ## "What stood here"
 
