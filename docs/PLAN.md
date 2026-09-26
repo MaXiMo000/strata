@@ -1,0 +1,136 @@
+# strata: build plan
+
+Each phase ends with something demo-able. A session picking up this repo starts at the first unticked task.
+
+## Product in one line
+
+Address + year → the best historical map layer(s) for that spot, aligned over today's map, with the positional
+error in meters, the source/license, and "what stood here" facts.
+
+## Non-negotiables
+
+- **Every layer stores its license.** Rumsey = CC BY-NC-SA (non-commercial). Filter on `license` before any monetisation.
+- **Every layer shows its error** (`rmse_m`, leave-one-out). Users trust a map that admits "±40 m".
+- **Year = survey year** where known, not publication year. Record both.
+- **Pilot city: New York City** (densest free coverage: NYPL + LOC Sanborn + USGS). Don't expand until NYC is good.
+- **Don't host what you don't have to**: prefer Allmaps (warps IIIF on the fly) and source-hosted tiles over your own storage.
+- **Tile sources must send CORS headers.** MapLibre fetches tiles with `fetch()`, so a server without
+  `Access-Control-Allow-Origin` shows nothing. (OpenTopoMap, for example, fails this.) Check with
+  `curl -I` before adding a source; proxy it through TiTiler if needed.
+
+---
+
+## Phase 0: Scaffold (done)
+
+- [x] PostGIS schema (`maps`, `gcps`), docker compose (PostGIS; TiTiler under the `tiles` profile)
+- [x] API: `/api/timeline`, `/api/layers` (ranking in SQL), `/api/whatwashere` (Wikidata P571/P576)
+- [x] `strata/georef.py`: affine fit, residuals in ground meters, leave-one-out RMSE, worst GCP, GDAL commands
+- [x] `web/index.html`: MapLibre, Photon geocoding, year slider snapping to available years, opacity, facts list
+- [x] Verified end-to-end in a browser with throwaway test rows (350 5th Ave: 1916 → Waldorf-Astoria)
+
+---
+
+## Phase 1: NYC MVP with pre-georeferenced maps (2–3 weeks)
+
+Goal: type any Manhattan address and get **≥ 4 distinct years** of real historical layers.
+
+### 1a. Ingest framework
+- [ ] `strata/ingest/__init__.py`: `upsert_map(dict)` + `upsert_gcps(map_id, rows)`; idempotent on `id`
+- [ ] `python -m strata.ingest <source> [--bbox minlon,minlat,maxlon,maxlat]` CLI (argparse, no framework)
+- [ ] Test: upserting the same map twice leaves one row (needs a test DB, so use `DATABASE_URL` from env and skip if it's missing)
+
+### 1b. NYPL Map Warper (already georeferenced, public domain)
+- [ ] `strata/ingest/nypl_warper.py`: page through the Map Warper API for maps whose bbox intersects NYC with status
+      "warped". Store the title, date, bbox (→ footprint; refine with the warped mask if the API exposes it), and GCPs
+      from the map's GCP endpoint. `tile_url` = Warper's XYZ tile endpoint for the map. **Check it sends CORS headers.**
+      Use layers (atlases) where available instead of single sheets.
+- [ ] Compute `rmse_m` with `georef.loo_rmse_m` from the imported GCPs; `method` from Warper's transform setting.
+
+### 1c. USGS historical topographic maps (already georeferenced GeoTIFFs)
+- [ ] `strata/ingest/usgs_topo.py`: query the USGS TNM Access API (`products?datasets=Historical Topographic Maps`
+      with bbox) → download the GeoTIFFs for NYC quads (1890s–1990s) → convert with
+      `gdal_translate -of COG` into `data/cogs/` → `tile_url` = TiTiler
+      (`http://localhost:8001/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=/data/<file>.tif`).
+      Footprint = the quad's neatline (the collar is clipped via `-cutline` or TiTiler's `nodata`).
+- [ ] `rmse_m`: USGS 1:24k National Map Accuracy Standard ≈ 12 m; 1:62,500 ≈ 32 m. Store these as defaults and set
+      `method='pre-georeferenced'`.
+
+### 1d. Allmaps annotations
+- [ ] `strata/ingest/allmaps.py`: import Georeference Annotations for NYC maps (LOC, NYPL, and Rumsey maps others have
+      already georeferenced in Allmaps). The tile URL is the Allmaps tile server
+      `https://allmaps.xyz/{z}/{x}/{y}.png?url=<annotation-url>` (check the current URL format in the Allmaps docs).
+      GCPs come from the annotation; compute `rmse_m`.
+
+### 1e. UI polish
+- [ ] Swipe comparison (drag a vertical divider between then/now), using a second map + clip, or `maplibre-gl-compare`
+- [ ] Layer picker when several maps share a year (from `/api/layers`); show error + license badges
+- [ ] URL state: `?q=<address>&year=1916&lat=&lon=&z=` so links are shareable
+- [ ] Replace OSM tiles with a provider whose terms allow production use (MapTiler / Stadia / Protomaps self-hosted PMTiles)
+
+**Acceptance:** 5 random Manhattan addresses each show ≥ 4 years; every layer shows its error + license; no CORS errors.
+
+---
+
+## Phase 2: Sanborn maps (2–4 weeks)
+
+Goal: building-level detail (the "what stood at this address" answer).
+
+- [ ] `strata/ingest/loc_sanborn.py`: LOC JSON API, e.g. `https://www.loc.gov/collections/sanborn-maps/?fa=location:new+york&fo=json`
+      → items → IIIF manifests. Store sheets with `atlas_id` (volume + year). Rights: pre-1931 US publication = public domain.
+      Check each item's rights field anyway.
+- [ ] Georeference the sheets for **one Manhattan atlas volume** (~50–100 sheets) in Allmaps Editor (manual, ~3–5 min/sheet
+      with street-corner GCPs). Import the annotations with the 1d ingester.
+- [ ] Mosaic: one layer per `atlas_id`. Allmaps renders multiple annotations as one tile layer. For TiTiler, build
+      a GDAL VRT of the sheet COGs.
+- [ ] `/api/layers` returns atlas layers as single entries (group by `atlas_id`)
+
+---
+
+## Phase 3: "What stood here" (1–2 weeks)
+
+- [ ] Cache Wikidata responses (a `facts_cache` table keyed on rounded lat/lon + radius; TTL 30 days)
+- [ ] OpenHistoricalMap: query features at the point with `start_date <= year <= end_date` (Overpass endpoint for OHM)
+- [ ] Rank facts: buildings > organisations > broadcast stations (use Wikidata P31 instance-of classes; filter radio
+      stations etc. out)
+- [ ] "Timeline" drawer: every fact for the point on one strip, 1850 → today
+
+---
+
+## Phase 4: Automatic georeferencing (research, months)
+
+See docs/GEOREFERENCING.md §4. The milestones are:
+- [ ] 4a. Text-spotting: run mapKurator (or a vision LLM on 1024 px tiles) → street-name labels + pixel boxes
+- [ ] 4b. Geocode the label pairs at intersections against OSM → candidate GCPs → RANSAC affine → accept if LOO RMSE < 25 m
+- [ ] 4c. Refinement: road-network extraction (segmentation) → match to OSM intersections near the 4b solution → TPS
+- [ ] 4d. Eval: compare against hand-georeferenced Sanborn sheets (Phase 2) as ground truth; report the median error
+- [ ] 4e. Human-in-the-loop: open low-confidence maps in Allmaps Editor pre-filled with the auto GCPs
+
+---
+
+## Phase 5: Beyond NYC
+
+- [ ] Second city with different sources: London (NLS OS maps, already georeferenced) or Amsterdam
+- [ ] India: Survey of India / British Library maps (check rights per item), Rumsey's South Asia holdings (NC license)
+- [ ] Aerial photos: USGS EarthExplorer "Aerial Photo Single Frames" (1930s+, need georeferencing like maps)
+- [ ] Public API with keys; embeddable widget
+
+---
+
+## Costs
+
+| Item | Monthly |
+|---|---|
+| VPS for API + PostGIS + TiTiler | ~$10–25 |
+| Object storage (Cloudflare R2, free egress) for USGS COGs | ~$1–5 (tens of GB) |
+| Base map tiles (production provider) | free tier → ~$25 |
+| Allmaps tile server | free (public). Self-host if you get traffic |
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| Licenses (Rumsey NC, some NLS tiles) | a `license` column + a UI badge + a filter |
+| Uneven coverage outside big cities | the slider only offers years that exist; USGS gives national baseline coverage |
+| Old maps drawn wrong (not just warped) | show `rmse_m`; allow TPS; never claim building-level accuracy on small-scale maps |
+| Third-party tile servers go down / lack CORS | ingest-time CORS check; mirror to our own COGs when a source is flaky |
+| Street renumbering (Chicago 1909, etc.) | geocode today's address → coordinates; never match on old addresses |

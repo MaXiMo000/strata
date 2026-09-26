@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>strata</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.css">
+<style>
+  html, body, #map { margin: 0; height: 100%; font: 14px/1.4 system-ui, sans-serif; }
+  #panel { position: absolute; top: 12px; left: 12px; width: min(340px, calc(100% - 24px)); background: #fff;
+           padding: 12px; border-radius: 8px; box-shadow: 0 2px 12px #0003; z-index: 1; }
+  #panel input[type=search] { width: 100%; box-sizing: border-box; padding: 6px; }
+  #panel input[type=range] { width: 100%; }
+  #year { font-size: 28px; font-weight: 700; }
+  .muted { color: #666; font-size: 12px; }
+  ul { padding-left: 1.1rem; margin: .4rem 0; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <form id="f"><input type="search" id="q" placeholder="Type an address…" aria-label="Address"></form>
+  <div id="year">&nbsp;</div>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Year" disabled>
+  <label class="muted">Opacity <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.85"></label>
+  <div id="meta" class="muted"></div>
+  <ul id="here"></ul>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const map = new maplibregl.Map({
+  container: 'map', center: [-73.9857, 40.7484], zoom: 15,
+  style: { version: 8, sources: { osm: { type: 'raster', tileSize: 256,
+    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],   // dev only: OSM tile policy forbids heavy use
+    attribution: '© OpenStreetMap contributors' } },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
+});
+let here = null, years = [];
+
+$('f').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent($('q').value)}`).then(r => r.json());
+  const f = r.features?.[0]; if (!f) return alert('Address not found');
+  const [lon, lat] = f.geometry.coordinates; here = { lat, lon };
+  map.flyTo({ center: [lon, lat], zoom: 17 });
+  years = await fetch(`/api/timeline?lat=${lat}&lon=${lon}`).then(r => r.json());
+  $('slider').max = Math.max(years.length - 1, 0); $('slider').disabled = !years.length;
+  $('slider').value = 0;
+  if (years.length) show(years[0]); else { $('year').textContent = 'No maps yet'; clearLayer(); }
+};
+$('slider').oninput = () => show(years[$('slider').value]);
+$('opacity').oninput = () => map.getLayer('old') && map.setPaintProperty('old', 'raster-opacity', +$('opacity').value);
+
+function clearLayer() { if (map.getLayer('old')) map.removeLayer('old'); if (map.getSource('old')) map.removeSource('old'); }
+
+async function show(year) {
+  $('year').textContent = year;
+  const q = `lat=${here.lat}&lon=${here.lon}&year=${year}`;
+  const [layers, things] = await Promise.all([
+    fetch(`/api/layers?${q}`).then(r => r.json()),
+    fetch(`/api/whatwashere?${q}`).then(r => r.json()).catch(() => []),
+  ]);
+  clearLayer();
+  const L = layers[0];
+  if (L) {
+    map.addSource('old', { type: 'raster', tiles: [L.tile_url], tileSize: 256, attribution: esc(L.source) });
+    map.addLayer({ id: 'old', type: 'raster', source: 'old', paint: { 'raster-opacity': +$('opacity').value } });
+    $('meta').innerHTML = `<b>${esc(L.title)}</b> (${L.year})<br>${L.rmse_m ? `±${Math.round(L.rmse_m)} m · ` : ''}` +
+      `${esc(L.license)} · <a href="${esc(L.source_url)}" target="_blank" rel="noopener">source</a>`;
+  }
+  $('here').innerHTML = things.slice(0, 8).map(t =>
+    `<li><a href="${esc(t.wikidata)}" target="_blank" rel="noopener">${esc(t.name)}</a> <span class="muted">${t.start}–${t.end ?? ''} · ${t.distance_m} m</span></li>`).join('');
+}
+</script>
+</body>
+</html>
