@@ -35,9 +35,10 @@ error in meters, the source/license, and "what stood here" facts.
 Goal: type any Manhattan address and get **≥ 4 distinct years** of real historical layers.
 
 ### 1a. Ingest framework
-- [ ] `strata/ingest/__init__.py`: `upsert_map(dict)` + `upsert_gcps(map_id, rows)`; idempotent on `id`
-- [ ] `python -m strata.ingest <source> [--bbox minlon,minlat,maxlon,maxlat]` CLI (argparse, no framework)
-- [ ] Test: upserting the same map twice leaves one row (needs a test DB, so use `DATABASE_URL` from env and skip if it's missing)
+- [x] `strata/ingest/__init__.py`: `upsert_map(conn, dict)` + `upsert_gcps(conn, map_id, rows)`; idempotent on `id`.
+      Also `get()`/`get_json()`: User-Agent, ~1 req/s, on-disk cache in `data/cache/`; `check_map` refuses rows without license/year/footprint/tile_url
+- [x] `python -m strata.ingest <source> [--bbox minlon,minlat,maxlon,maxlat]` CLI (argparse, no framework)
+- [x] Test: upserting the same map twice leaves one row (needs a test DB, so use `DATABASE_URL` from env and skip if it's missing)
 
 ### 1b. NYPL Map Warper (already georeferenced, public domain)
 - [ ] `strata/ingest/nypl_warper.py`: page through the Map Warper API for maps whose bbox intersects NYC with status
