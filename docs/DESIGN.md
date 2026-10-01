@@ -56,7 +56,8 @@ The historical tiles keep their own colours. Never tint or filter them; they're 
 - **The ruler** (bottom, full width): a hairline with major ticks per decade in `--slate` mono and **notches only at years that
   have maps**. The density of notches visibly shows the coverage. Drag, click a notch, or use `←/→` to jump between available years.
   The current notch is `--survey`.
-- **Layer change** crossfades two raster layers (keep the old one loaded, animate `raster-opacity` over 400 ms) and never pops.
+- **Layer change** crossfades two layers (keep the old one loaded, animate opacity over 400 ms: `WarpedMapLayer.setOpacity` for
+  Allmaps maps, which are warped in the browser, and `raster-opacity` for XYZ sources) and never pops.
   Preload the neighbouring years' tiles.
 - **Swipe compare** (`C`): a vertical hairline divider with a small handle labelled `1916 │ 2026` in mono. Drag it across the city.
 - **Layer card** (a thin panel, top right): map title in serif, then mono readouts: `1:600 · ±6 m · poly1 · PUBLIC DOMAIN · LOC`,

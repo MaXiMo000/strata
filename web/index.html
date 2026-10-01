@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>strata</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.css">
 <style>
   html, body, #map { margin: 0; height: 100%; font: 14px/1.4 system-ui, sans-serif; }
   #panel { position: absolute; top: 12px; left: 12px; width: min(340px, calc(100% - 24px)); background: #fff;
@@ -26,18 +26,21 @@
   <div id="meta" class="muted"></div>
   <ul id="here"></ul>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
-<script>
+<script type="module">
+import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@5/+esm';
+// Allmaps maps are warped in the browser from the source IIIF server: allmaps.xyz (Cloudflare) is blocked by NYPL/LOC.
+import { WarpedMapLayer } from 'https://cdn.jsdelivr.net/npm/@allmaps/maplibre@1.0.0-beta.44/+esm';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const map = new maplibregl.Map({
-  container: 'map', center: [-73.9857, 40.7484], zoom: 15,
+  container: 'map', center: [-73.9857, 40.7484], zoom: 15, maxPitch: 0,
   style: { version: 8, sources: { osm: { type: 'raster', tileSize: 256,
     tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],   // dev only: OSM tile policy forbids heavy use
     attribution: '© OpenStreetMap contributors' } },
     layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
 });
-let here = null, years = [];
+let here = null, years = [], warped = null;
+map.on('load', () => { warped = new WarpedMapLayer(); map.addLayer(warped); });
 
 $('f').onsubmit = async e => {
   e.preventDefault();
@@ -51,9 +54,9 @@ $('f').onsubmit = async e => {
   if (years.length) show(years[0]); else { $('year').textContent = 'No maps yet'; clearLayer(); }
 };
 $('slider').oninput = () => show(years[$('slider').value]);
-$('opacity').oninput = () => map.getLayer('old') && map.setPaintProperty('old', 'raster-opacity', +$('opacity').value);
+$('opacity').oninput = () => { warped?.setOpacity(+$('opacity').value); map.getLayer('old') && map.setPaintProperty('old', 'raster-opacity', +$('opacity').value); };
 
-function clearLayer() { if (map.getLayer('old')) map.removeLayer('old'); if (map.getSource('old')) map.removeSource('old'); }
+function clearLayer() { warped?.clear(); if (map.getLayer('old')) map.removeLayer('old'); if (map.getSource('old')) map.removeSource('old'); }
 
 async function show(year) {
   $('year').textContent = year;
@@ -64,9 +67,14 @@ async function show(year) {
   ]);
   clearLayer();
   const L = layers[0];
-  if (L) {
+  if (L?.georef_annotation) {
+    await warped.addGeoreferenceAnnotationByUrl(L.georef_annotation);
+    warped.setOpacity(+$('opacity').value);
+  } else if (L) {
     map.addSource('old', { type: 'raster', tiles: [L.tile_url], tileSize: 256, attribution: esc(L.source) });
     map.addLayer({ id: 'old', type: 'raster', source: 'old', paint: { 'raster-opacity': +$('opacity').value } });
+  }
+  if (L) {
     $('meta').innerHTML = `<b>${esc(L.title)}</b> (${L.year})<br>${L.rmse_m ? `±${Math.round(L.rmse_m)} m · ` : ''}` +
       `${esc(L.license)} · <a href="${esc(L.source_url)}" target="_blank" rel="noopener">source</a>`;
   }

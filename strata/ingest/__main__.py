@@ -15,7 +15,7 @@ def parse_bbox(s: str) -> tuple[float, float, float, float]:
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="python -m strata.ingest")
     p.add_argument("source", help="module in strata/ingest, e.g. nypl_warper, usgs_topo, allmaps")
-    p.add_argument("--bbox", type=parse_bbox, default=NYC_BBOX, help="default: New York City")
+    p.add_argument("--bbox", type=parse_bbox, default=NYC_BBOX, help="default: New York City. Use --bbox=... (values start with -)")
     a = p.parse_args(argv)
     source = importlib.import_module(f"strata.ingest.{a.source}")
     with connect() as conn:

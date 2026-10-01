@@ -37,15 +37,22 @@ Goal: type any Manhattan address and get **≥ 4 distinct years** of real histor
 ### 1a. Ingest framework
 - [x] `strata/ingest/__init__.py`: `upsert_map(conn, dict)` + `upsert_gcps(conn, map_id, rows)`; idempotent on `id`.
       Also `get()`/`get_json()`: User-Agent, ~1 req/s, on-disk cache in `data/cache/`; `check_map` refuses rows without license/year/footprint/tile_url
-- [x] `python -m strata.ingest <source> [--bbox minlon,minlat,maxlon,maxlat]` CLI (argparse, no framework)
+- [x] `python -m strata.ingest <source> [--bbox=minlon,minlat,maxlon,maxlat]` CLI (argparse, no framework)
 - [x] Test: upserting the same map twice leaves one row (needs a test DB, so use `DATABASE_URL` from env and skip if it's missing)
 
 ### 1b. NYPL Map Warper (already georeferenced, public domain)
-- [ ] `strata/ingest/nypl_warper.py`: page through the Map Warper API for maps whose bbox intersects NYC with status
-      "warped". Store the title, date, bbox (→ footprint; refine with the warped mask if the API exposes it), and GCPs
-      from the map's GCP endpoint. `tile_url` = Warper's XYZ tile endpoint for the map. **Check it sends CORS headers.**
-      Use layers (atlases) where available instead of single sheets.
-- [ ] Compute `rmse_m` with `georef.loo_rmse_m` from the imported GCPs; `method` from Warper's transform setting.
+> **Drift (2026-10-02):** NYPL archived Map Warper in April 2021; `maps.nypl.org/warper` (API and tiles) now redirects to
+> Archive-It. The work survives in NYPL's Space/Time dataset (title, year, image id) and in Allmaps (live GCPs, warped
+> masks), so the ingester joins the two on the NYPL image id. Atlas layers aren't in Allmaps; sheets are ingested
+> one by one (Phase 2 groups them by `atlas_id`).
+- [x] `strata/ingest/nypl_warper.py`: dated maps from `mapwarper.objects.ndjson` overlapping the bbox → Allmaps
+      `api.allmaps.org/images/<sha1(iiif url)[:16]>/maps.geojson` → footprint = Allmaps' warped mask, GCPs, transformation.
+      `georef_annotation` = the Allmaps map; `tile_url` = `allmaps.xyz/maps/<id>/{z}/{x}/{y}.png` (CORS `*`, but see 1e: it
+      renders NYPL/LOC blank, so the browser warps them itself). License: pre-1931 → `public-domain`, later →
+      `nypl-rights-unverified` (per-item rights need an NYPL API token).
+- [x] Compute `rmse_m` with `georef.loo_rmse_m` from the imported GCPs; `method` from the Allmaps transformation.
+      Quality gate for every source (`ingest.MAX_RMSE_M = 100`): maps with < 4 GCPs or LOO RMSE > 100 m are skipped.
+      The NYPL set includes continent maps whose footprint covers NYC (errors of 10 km+).
 
 ### 1c. USGS historical topographic maps (already georeferenced GeoTIFFs)
 - [ ] `strata/ingest/usgs_topo.py`: query the USGS TNM Access API (`products?datasets=Historical Topographic Maps`
@@ -58,19 +65,19 @@ Goal: type any Manhattan address and get **≥ 4 distinct years** of real histor
 
 ### 1d. Allmaps annotations
 - [ ] `strata/ingest/allmaps.py`: import Georeference Annotations for NYC maps (LOC, NYPL, and Rumsey maps others have
-      already georeferenced in Allmaps). The tile URL is the Allmaps tile server
-      `https://allmaps.xyz/{z}/{x}/{y}.png?url=<annotation-url>` (check the current URL format in the Allmaps docs).
-      GCPs come from the annotation; compute `rmse_m`.
+      already georeferenced in Allmaps). Search: `api.allmaps.org/maps.geojson?intersects=<lat>,<lon>&imageServiceDomain=…`
+      (lat first; max 200 results, no paging, so query a grid). Skip `iiif.nypl.org` (1b has it with dates). The year
+      must come from the source's IIIF manifest / catalogue record. GCPs come from the annotation; compute `rmse_m`.
 
 ### 1e. Design build. **The UI must be striking, not AI-looking.** The spec is docs/DESIGN.md.
-- [ ] `web/` becomes **Vite + TypeScript** (no UI framework; MapLibre does the heavy lifting). FastAPI serves `web/dist`; Vite proxies `/api` in dev
+- [ ] `web/` becomes **Vite + TypeScript** (no UI framework; MapLibre + `@allmaps/maplibre` do the heavy lifting). FastAPI serves `web/dist`; Vite proxies `/api` in dev
 - [ ] Tokens (`web/src/tokens.css`): the six colours with their measured contrast ratios in comments, a type scale, 4px spacing, motion, z-layers.
       Fonts self-hosted: `@fontsource-variable/fraunces`, `@fontsource/ibm-plex-mono`, `@fontsource/instrument-sans`
 - [ ] Custom dark vector base style `web/style/base.json` (Protomaps PMTiles or MapTiler; production-licensed; replaces OSM raster tiles),
       with a `B` toggle to hide modern labels
 - [ ] Arrival screen (slow drift, serif question, sample addresses)
 - [ ] Year numeral (Fraunces, huge, odometer roll) + **the ruler** (notches only at available years; ARIA slider; `←/→` jumps)
-- [ ] Layer crossfade (two raster layers, 400 ms) + preloading of neighbouring years; the pin plus an accuracy halo sized by `rmse_m`
+- [ ] Layer crossfade (two layers, 400 ms: `WarpedMapLayer.setOpacity` for Allmaps maps, `raster-opacity` for XYZ) + preloading of neighbouring years; the pin plus an accuracy halo sized by `rmse_m`
 - [ ] Layer card (serif title + mono readouts + source/license) and a picker when several maps share a year
 - [ ] Swipe compare (`C`) with the `1916 │ 2026` handle
 - [ ] URL state `?q=&lat=&lon=&z=&year=&swipe=`; PNG poster export (`P`)

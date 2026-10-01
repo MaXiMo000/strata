@@ -37,7 +37,7 @@ def timeline(lat: float = Lat, lon: float = Lon):
 def layers(lat: float = Lat, lon: float = Lon, year: int = Query(ge=1000, le=2100), limit: int = Query(5, le=20)):
     """Best maps for (point, year): closest in time, then most detailed, then most accurate."""
     return q(
-        f"""SELECT id, title, source, source_url, license, year, scale_denom, rmse_m, method, tile_url
+        f"""SELECT id, title, source, source_url, license, year, scale_denom, rmse_m, method, tile_url, georef_annotation
             FROM maps
             WHERE ST_Covers(footprint, {POINT})
             ORDER BY abs(year - %(year)s), scale_denom NULLS LAST, rmse_m NULLS LAST

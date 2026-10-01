@@ -15,6 +15,9 @@ DB = os.environ.get("DATABASE_URL", "postgresql://strata:strata@localhost:5432/s
 CACHE = Path(__file__).resolve().parents[2] / "data" / "cache"
 UA = "strata/0.0 (+https://github.com/MaXiMo000/strata; historical map catalog)"
 NYC_BBOX = (-74.26, 40.49, -73.70, 40.92)  # minlon, minlat, maxlon, maxlat
+# A layer whose leave-one-out error exceeds this can't say anything about one address (continent maps that happen to
+# cover NYC score 10 km+). Hand-drawn city plans reach 50-200 m; atlases 10-30 m. Maps with < 4 GCPs have no error at all.
+MAX_RMSE_M = 100.0
 
 REQUIRED = ("id", "title", "source", "license", "year", "footprint", "tile_url")
 COLUMNS = ("id", "title", "source", "source_url", "license", "year", "year_published", "scale_denom", "rmse_m",
@@ -42,6 +45,10 @@ def get(url: str, params: dict | None = None, *, cache: bool = True, min_interva
 
 def get_json(url: str, params: dict | None = None, **kw):
     return json.loads(get(url, params, **kw))
+
+
+def usable(rmse_m: float | None) -> bool:
+    return rmse_m is not None and rmse_m <= MAX_RMSE_M
 
 
 def connect():

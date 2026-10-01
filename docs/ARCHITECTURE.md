@@ -29,7 +29,7 @@
 | `footprint MultiPolygon` | The **mapped area after warping**, not the sheet's bounding box. Otherwise the ocean or margins of a sheet "cover" points they don't show. For Allmaps/Warper, use the warped mask polygon. |
 | `year` / `year_published` | The survey year drives the slider. The publication year is kept for citations. |
 | `scale_denom` | A tie-breaker: a larger-scale (more detailed) map wins. |
-| `rmse_m` | Leave-one-out GCP error in ground meters. Shown as ±N m. |
+| `rmse_m` | Leave-one-out GCP error in ground meters. Shown as ±N m. Ingest skips maps above `ingest.MAX_RMSE_M` (100 m) or with < 4 GCPs. |
 | `method` | poly1/2/3, tps, or pre-georeferenced. |
 | `tile_url` | An XYZ template that the frontend uses directly. |
 | `atlas_id` | Groups Sanborn sheets into a single per-year layer. |
@@ -54,9 +54,14 @@ wrong in practice (e.g. a 1911 1:600 Sanborn should beat a 1916 1:24k topo for y
 
 | Source type | How it's served | Storage |
 |---|---|---|
-| IIIF images + GCPs (LOC, NYPL, Rumsey via Allmaps) | Allmaps tile server warps on the fly | none |
+| IIIF images + GCPs (LOC, NYPL, Rumsey via Allmaps) | **the browser** warps them with `@allmaps/maplibre` (`WarpedMapLayer`), fetching IIIF tiles straight from the institution. `tile_url` still holds the `allmaps.xyz` template for external tools | none |
 | GeoTIFFs (USGS), or our own warps | `gdalwarp` → COG in `data/cogs/` or R2 → TiTiler | ours |
-| Pre-tiled (NYPL Warper, NLS) | the source's XYZ URL | none |
+| Pre-tiled (NLS) | the source's XYZ URL | none |
+
+Why not the Allmaps tile server for everything: it runs on Cloudflare, and NYPL's and LOC's IIIF servers block
+Cloudflare's IP ranges, so it returns blank 200 tiles for them (checked 2026-10-02; allmaps/allmaps#638). It works for
+Rumsey. In the browser the requests come from the user, and both institutions send `Access-Control-Allow-Origin: *`.
+The frontend uses `georef_annotation` when present and `tile_url` otherwise.
 
 The COG recipe is in `strata/georef.gdal_commands` (EPSG:3857, WEBP compression, alpha band).
 In production, put a CDN (Cloudflare) in front of TiTiler and cache tiles aggressively, since they never change.
@@ -80,7 +85,7 @@ and the core-sample drawer.
 | Method | Path | Result |
 |---|---|---|
 | GET | `/api/timeline?lat&lon` | `[1857, 1891, 1916, 1955, …]` |
-| GET | `/api/layers?lat&lon&year&limit=5` | `[{id,title,source,source_url,license,year,scale_denom,rmse_m,method,tile_url}]` |
+| GET | `/api/layers?lat&lon&year&limit=5` | `[{id,title,source,source_url,license,year,scale_denom,rmse_m,method,tile_url,georef_annotation}]` |
 | GET | `/api/whatwashere?lat&lon&year` | `[{wikidata,name,start,end,distance_m}]` |
 
 Inputs are validated (lat/lon ranges, year 1000–2100, limit ≤ 20). All SQL is parameterised.

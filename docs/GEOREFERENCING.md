@@ -78,4 +78,5 @@ Don't build your own editor.
 - **GDAL**: `gdal_translate -gcp`, `gdalwarp -order/-tps`, `-of COG`. The recipe is in `georef.gdal_commands`.
 - **Allmaps**: an editor + viewer + tile server for IIIF images, using the W3C "Georeference Annotation" format.
 - **QGIS Georeferencer**: good for one-off manual work and for checking residuals visually.
-- **NYPL Map Warper**: an open-source Rails app, and the source of thousands of existing NYC GCP sets.
+- **NYPL Map Warper**: an open-source Rails app, and the source of thousands of existing NYC GCP sets. NYPL's instance was
+  archived in 2021; its GCPs now live in Allmaps (see DATA_SOURCES.md).
