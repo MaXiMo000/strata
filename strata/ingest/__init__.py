@@ -33,9 +33,18 @@ def get(url: str, params: dict | None = None, *, cache: bool = True, min_interva
     path = CACHE / key[:2] / key
     if cache and path.exists():
         return path.read_bytes()
-    time.sleep(max(0.0, _last_request + min_interval - time.monotonic()))
-    r = (client or httpx).get(url, params=params, headers={"User-Agent": UA}, timeout=60, follow_redirects=True)
-    _last_request = time.monotonic()
+    for attempt in range(3):  # long runs meet the odd dropped connection or 5xx; back off 2 s, then 4 s
+        time.sleep(max(0.0, _last_request + min_interval - time.monotonic()))
+        try:
+            r = (client or httpx).get(url, params=params, headers={"User-Agent": UA}, timeout=60, follow_redirects=True)
+            _last_request = time.monotonic()
+            if r.status_code < 500:
+                break
+        except httpx.TransportError:
+            _last_request = time.monotonic()
+            if attempt == 2:
+                raise
+        time.sleep(2 ** (attempt + 1))
     r.raise_for_status()
     if cache:
         path.parent.mkdir(parents=True, exist_ok=True)

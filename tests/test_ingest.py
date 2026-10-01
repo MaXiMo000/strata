@@ -34,6 +34,14 @@ def test_get_caches_and_sends_user_agent(tmp_path, monkeypatch):
     assert len(seen) == 1 and seen[0].startswith("strata/")
 
 
+def test_get_retries_server_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(ingest, "CACHE", tmp_path)
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: None)
+    codes = iter([503, 200])
+    client = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(next(codes), json={"ok": 2})))
+    assert ingest.get_json("https://x.test/b", client=client, min_interval=0) == {"ok": 2}
+
+
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="needs a PostGIS test DB (DATABASE_URL)")
 def test_upsert_map_twice_leaves_one_row():
     with ingest.connect() as conn:
@@ -67,3 +75,20 @@ def test_nypl_record_plus_allmaps_feature_to_row():
     assert nw.plausible({"data": {"gcps": [[px, py, lat, lon] for px, py, lon, lat in gcps]}})
     assert not nw.plausible({"data": {"gcps": [[px, py, lat, lon] for px, py, lon, lat in gcps[:3]]}})
     assert nw.in_bbox(SQUARE, (-74.05, 40.75, -73.95, 40.85)) and not nw.in_bbox(SQUARE, (-73.0, 40.0, -72.0, 41.0))
+
+
+def test_usgs_item_to_row_prefers_survey_year_and_crops_to_neatline():
+    from strata.ingest import usgs_topo as ut
+
+    xml = ("<procdesc>Date on Map</procdesc>\n<procdate>1966</procdate><procdesc>Imprint Year</procdesc><procdate>1972</procdate>"
+           "<procdesc>Aerial Photo Year</procdesc><procdate>1965</procdate><procdesc>Field Check Year</procdesc><procdate>1966</procdate>")
+    item = {"title": "USGS 1:24000-scale Quadrangle for Central Park, NY 1966", "sourceId": "abc", "metaUrl": "https://x",
+            "publicationDate": "1966-01-01", "boundingBox": {"minX": -74.0, "maxX": -73.875, "minY": 40.75, "maxY": 40.875},
+            "urls": {"GeoTIFF": "https://prd-tnm.s3.amazonaws.com/a/NY_Central%20Park_1966.tif"}}
+    row = ut.to_row(item, xml)
+    ingest.check_map(row)
+    assert (row["year"], row["year_published"], row["scale_denom"]) == (1966, 1972, 24000)
+    assert round(row["rmse_m"], 1) == 12.2 and ingest.usable(row["rmse_m"]) and not ingest.usable(ut.nmas_m(250000))
+    assert "%2520Park" in row["tile_url"] and "projwin%3D-74.0%2C40.875%2C-73.875%2C40.75" in row["tile_url"]
+    assert row["tile_url"].count("{z}") == 1 and ut.years("<procdesc>Survey Year</procdesc><procdate>1889</procdate>") == (1889, None)
+    assert ut.to_row(item | {"urls": {}}, xml) is None

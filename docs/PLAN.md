@@ -55,13 +55,14 @@ Goal: type any Manhattan address and get **≥ 4 distinct years** of real histor
       The NYPL set includes continent maps whose footprint covers NYC (errors of 10 km+).
 
 ### 1c. USGS historical topographic maps (already georeferenced GeoTIFFs)
-- [ ] `strata/ingest/usgs_topo.py`: query the USGS TNM Access API (`products?datasets=Historical Topographic Maps`
-      with bbox) → download the GeoTIFFs for NYC quads (1890s–1990s) → convert with
-      `gdal_translate -of COG` into `data/cogs/` → `tile_url` = TiTiler
-      (`http://localhost:8001/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=/data/<file>.tif`).
-      Footprint = the quad's neatline (the collar is clipped via `-cutline` or TiTiler's `nodata`).
-- [ ] `rmse_m`: USGS 1:24k National Map Accuracy Standard ≈ 12 m; 1:62,500 ≈ 32 m. Store these as defaults and set
-      `method='pre-georeferenced'`.
+- [x] `strata/ingest/usgs_topo.py`: TNM Access API (`products?datasets=Historical Topographic Maps&bbox=…`, paged by 500)
+      → 381 NYC products. **No download:** the GeoTIFFs on `prd-tnm.s3.amazonaws.com` are already valid COGs, so TiTiler
+      reads them in place. The collar is cropped in the tile URL with a GDAL connection string,
+      `url=vrt:///vsicurl/<tif>?projwin=<neatline>&projwin_srs=EPSG:4267`. Footprint = the neatline (TNM `boundingBox`).
+      Year = Survey → Field Check → Aerial Photo → Date on Map from the FGDC metadata; `year_published` = Imprint Year.
+      TiTiler runs with `PROJ_NETWORK=ON` so NAD27 → WGS84 uses the NADCON grid (otherwise a 7–20 m ballpark shift).
+- [x] `rmse_m` = NMAS (`scale × 1/50 inch`: 1:24k ≈ 12 m, 1:62,500 ≈ 32 m), `method='pre-georeferenced'`. The 100 m gate
+      drops 1:250,000 sheets. 356 maps, 1884–1997.
 
 ### 1d. Allmaps annotations
 - [ ] `strata/ingest/allmaps.py`: import Georeference Annotations for NYC maps (LOC, NYPL, and Rumsey maps others have

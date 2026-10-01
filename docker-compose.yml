@@ -13,6 +13,8 @@ services:
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
     ports: ["8001:80"]
+    # USGS topos are NAD27: without the NOAA NADCON grid, PROJ falls back to a 7-20 m ballpark shift
+    environment: { PROJ_NETWORK: "ON" }
     volumes: ["./data/cogs:/data:ro"]
     profiles: ["tiles"]
 volumes:

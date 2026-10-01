@@ -55,7 +55,8 @@ wrong in practice (e.g. a 1911 1:600 Sanborn should beat a 1916 1:24k topo for y
 | Source type | How it's served | Storage |
 |---|---|---|
 | IIIF images + GCPs (LOC, NYPL, Rumsey via Allmaps) | **the browser** warps them with `@allmaps/maplibre` (`WarpedMapLayer`), fetching IIIF tiles straight from the institution. `tile_url` still holds the `allmaps.xyz` template for external tools | none |
-| GeoTIFFs (USGS), or our own warps | `gdalwarp` → COG in `data/cogs/` or R2 → TiTiler | ours |
+| GeoTIFFs (USGS) | TiTiler reads USGS's own COGs on S3 in place; `vrt://…?projwin=` in the tile URL crops the collar | none |
+| Our own warps (Phase 2+) | `gdalwarp` → COG in `data/cogs/` or R2 → TiTiler | ours |
 | Pre-tiled (NLS) | the source's XYZ URL | none |
 
 Why not the Allmaps tile server for everything: it runs on Cloudflare, and NYPL's and LOC's IIIF servers block
