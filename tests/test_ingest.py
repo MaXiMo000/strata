@@ -50,6 +50,8 @@ def test_upsert_map_twice_leaves_one_row():
             ingest.upsert_gcps(conn, MAP["id"], [(0, 0, -74.0, 40.7), (1, 1, -73.9, 40.8)])
         assert conn.execute("SELECT count(*), max(title) FROM maps WHERE id = %s", (MAP["id"],)).fetchone() == (1, "second")
         assert conn.execute("SELECT count(*) FROM gcps WHERE map_id = %s", (MAP["id"],)).fetchone() == (2,)
+        newark = {"type": "Polygon", "coordinates": [[[-74.2, 40.72], [-74.15, 40.72], [-74.15, 40.76], [-74.2, 40.76], [-74.2, 40.72]]]}
+        assert not ingest.upsert_map(conn, MAP | {"id": "test:newark", "footprint": newark})  # outside the pilot area
         conn.rollback()  # leave the catalog untouched
 
 
@@ -92,3 +94,29 @@ def test_usgs_item_to_row_prefers_survey_year_and_crops_to_neatline():
     assert "%2520Park" in row["tile_url"] and "projwin%3D-74.0%2C40.875%2C-73.875%2C40.75" in row["tile_url"]
     assert row["tile_url"].count("{z}") == 1 and ut.years("<procdesc>Survey Year</procdesc><procdate>1889</procdate>") == (1889, None)
     assert ut.to_row(item | {"urls": {}}, xml) is None
+
+
+def test_allmaps_dates_and_rights_from_iiif_manifests():
+    from strata.ingest import allmaps as am
+    from tests.test_core import synthetic_gcps
+
+    v3 = {"navDate": "1867-01-01T00:00:00Z", "rights": "http://rightsstatements.org/vocab/NoC-US/1.0/"}
+    v2 = {"metadata": [{"label": "Title", "value": "Plan 1900 copy"}, {"label": "Date Created", "value": [{"@value": "ca. 1852"}]}]}
+    assert am.from_manifest(v3) == (1867, "http://rightsstatements.org/vocab/NoC-US/1.0/")
+    assert am.from_manifest(v2) == (1852, "see-source")  # the date label wins over a year in the title
+    assert am.earliest(2023, "Map of the City of Newark from Pierson's Directory 1853") == 1853
+    assert am.earliest(1867, "Plan 1900 copy") == 1867  # a later year in the title is not a scan date
+    assert am.from_manifest({"metadata": [{"label": {"en": ["Subject"]}, "value": {"en": ["Maps"]}}]})[0] is None
+
+    gcps = synthetic_gcps()
+    feat = {"geometry": SQUARE, "properties": {
+        "id": "https://annotations.allmaps.org/maps/8d36b34061eda327",
+        "resource": {"id": "https://tile.loc.gov/image-services/iiif/service:gmd:x", "partOf": [
+            {"type": "Canvas", "partOf": [{"type": "Manifest", "id": "https://www.loc.gov/item/2005625335/manifest.json",
+                                           "label": {"none": ["Commissioners' plan"]}}]}]},
+        "transformation": {"type": "thinPlateSpline"},
+        "gcps": [{"resource": [px, py], "geo": [lon, lat]} for px, py, lon, lat in gcps]}}
+    assert am.manifest_url(feat) == "https://www.loc.gov/item/2005625335/manifest.json"
+    row, out = am.to_row(feat, 1811, "no-known-restrictions", "https://www.loc.gov/item/2005625335/", "Commissioners' plan")
+    ingest.check_map(row)
+    assert (row["id"], row["source"], row["method"]) == ("allmaps:8d36b34061eda327", "tile.loc.gov", "tps") and len(out) == 6

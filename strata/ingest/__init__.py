@@ -18,6 +18,11 @@ NYC_BBOX = (-74.26, 40.49, -73.70, 40.92)  # minlon, minlat, maxlon, maxlat
 # A layer whose leave-one-out error exceeds this can't say anything about one address (continent maps that happen to
 # cover NYC score 10 km+). Hand-drawn city plans reach 50-200 m; atlases 10-30 m. Maps with < 4 GCPs have no error at all.
 MAX_RMSE_M = 100.0
+# The pilot area: NYC_BBOX minus New Jersey, cut along the Hudson, Kill van Kull and Arthur Kill. The bbox alone pulls in
+# Newark atlases and NJ quads; the rule is NYC only until Phase 1 passes. Coarse on purpose: it only decides "is this
+# map about NYC at all", the footprint does the real work.
+PILOT_WKT = ("POLYGON((-73.93 40.92,-73.70 40.92,-73.70 40.49,-74.26 40.49,-74.21 40.56,-74.19 40.64,-74.09 40.645,"
+             "-74.06 40.66,-74.02 40.71,-74.00 40.77,-73.93 40.92))")
 
 REQUIRED = ("id", "title", "source", "license", "year", "footprint", "tile_url")
 COLUMNS = ("id", "title", "source", "source_url", "license", "year", "year_published", "scale_denom", "rmse_m",
@@ -73,14 +78,17 @@ def check_map(m: dict) -> None:
         raise ValueError(f"{m['id']}: footprint must be a GeoJSON Polygon/MultiPolygon")
 
 
-def upsert_map(conn, m: dict) -> None:
-    """Insert or update one map by `id`. `footprint` is a GeoJSON (Multi)Polygon dict in EPSG:4326."""
+def upsert_map(conn, m: dict) -> bool:
+    """Insert or update one map by `id`. `footprint` is a GeoJSON (Multi)Polygon dict in EPSG:4326.
+    Returns False (and stores nothing) when the footprint misses the pilot area."""
     check_map(m)
-    row = {c: m.get(c) for c in COLUMNS} | {"footprint": json.dumps(m["footprint"])}
+    row = {c: m.get(c) for c in COLUMNS} | {"footprint": json.dumps(m["footprint"]), "pilot": PILOT_WKT}
     cols = ", ".join((*COLUMNS, "footprint"))
     vals = ", ".join([f"%({c})s" for c in COLUMNS] + ["ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(%(footprint)s), 4326))"])
     updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in (*COLUMNS[1:], "footprint"))
-    conn.execute(f"INSERT INTO maps ({cols}) VALUES ({vals}) ON CONFLICT (id) DO UPDATE SET {updates}", row)
+    inside = "ST_Intersects(ST_GeomFromGeoJSON(%(footprint)s), ST_GeomFromText(%(pilot)s, 4326))"
+    cur = conn.execute(f"INSERT INTO maps ({cols}) SELECT {vals} WHERE {inside} ON CONFLICT (id) DO UPDATE SET {updates}", row)
+    return cur.rowcount > 0
 
 
 def upsert_gcps(conn, map_id: str, rows, origin: str = "imported") -> None:

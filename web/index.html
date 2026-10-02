@@ -1,86 +1,77 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>strata</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.css">
-<style>
-  html, body, #map { margin: 0; height: 100%; font: 14px/1.4 system-ui, sans-serif; }
-  #panel { position: absolute; top: 12px; left: 12px; width: min(340px, calc(100% - 24px)); background: #fff;
-           padding: 12px; border-radius: 8px; box-shadow: 0 2px 12px #0003; z-index: 1; }
-  #panel input[type=search] { width: 100%; box-sizing: border-box; padding: 6px; }
-  #panel input[type=range] { width: 100%; }
-  #year { font-size: 28px; font-weight: 700; }
-  .muted { color: #666; font-size: 12px; }
-  ul { padding-left: 1.1rem; margin: .4rem 0; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#07090b">
+  <title>strata: what stood here?</title>
+  <meta name="description" content="Type a New York address and slide back through two centuries of georeferenced historical maps, each with its source, license and error in metres.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
-<body>
-<div id="map"></div>
-<div id="panel">
-  <form id="f"><input type="search" id="q" placeholder="Type an address…" aria-label="Address"></form>
-  <div id="year">&nbsp;</div>
-  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Year" disabled>
-  <label class="muted">Opacity <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.85"></label>
-  <div id="meta" class="muted"></div>
-  <ul id="here"></ul>
-</div>
-<script type="module">
-import maplibregl from 'https://cdn.jsdelivr.net/npm/maplibre-gl@5/+esm';
-// Allmaps maps are warped in the browser from the source IIIF server: allmaps.xyz (Cloudflare) is blocked by NYPL/LOC.
-import { WarpedMapLayer } from 'https://cdn.jsdelivr.net/npm/@allmaps/maplibre@1.0.0-beta.44/+esm';
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const map = new maplibregl.Map({
-  container: 'map', center: [-73.9857, 40.7484], zoom: 15, maxPitch: 0,
-  style: { version: 8, sources: { osm: { type: 'raster', tileSize: 256,
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],   // dev only: OSM tile policy forbids heavy use
-    attribution: '© OpenStreetMap contributors' } },
-    layers: [{ id: 'osm', type: 'raster', source: 'osm' }] },
-});
-let here = null, years = [], warped = null;
-map.on('load', () => { warped = new WarpedMapLayer(); map.addLayer(warped); });
+<body class="arrival">
+  <a class="skip" href="#q">Skip to the address</a>
 
-$('f').onsubmit = async e => {
-  e.preventDefault();
-  const r = await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent($('q').value)}`).then(r => r.json());
-  const f = r.features?.[0]; if (!f) return alert('Address not found');
-  const [lon, lat] = f.geometry.coordinates; here = { lat, lon };
-  map.flyTo({ center: [lon, lat], zoom: 17 });
-  years = await fetch(`/api/timeline?lat=${lat}&lon=${lon}`).then(r => r.json());
-  $('slider').max = Math.max(years.length - 1, 0); $('slider').disabled = !years.length;
-  $('slider').value = 0;
-  if (years.length) show(years[0]); else { $('year').textContent = 'No maps yet'; clearLayer(); }
-};
-$('slider').oninput = () => show(years[$('slider').value]);
-$('opacity').oninput = () => { warped?.setOpacity(+$('opacity').value); map.getLayer('old') && map.setPaintProperty('old', 'raster-opacity', +$('opacity').value); };
+  <div id="map" role="region" aria-label="Map. Drag to pan, scroll or pinch to zoom."></div>
 
-function clearLayer() { warped?.clear(); if (map.getLayer('old')) map.removeLayer('old'); if (map.getSource('old')) map.removeSource('old'); }
+  <header class="hud">
+    <a class="brand" href="/" aria-label="strata: start again">
+      <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M2 6.5h16M4 10h14M2 13.5h12M10 2.5v15"/>
+      </svg>
+      <b>Strata</b>
+    </a>
+    <p class="catalog" id="catalog"></p>
+    <button class="key-hint" id="help-open" type="button" aria-haspopup="dialog" aria-controls="help">
+      <kbd>?</kbd><span>Keys</span>
+    </button>
+  </header>
 
-async function show(year) {
-  $('year').textContent = year;
-  const q = `lat=${here.lat}&lon=${here.lon}&year=${year}`;
-  const [layers, things] = await Promise.all([
-    fetch(`/api/layers?${q}`).then(r => r.json()),
-    fetch(`/api/whatwashere?${q}`).then(r => r.json()).catch(() => []),
-  ]);
-  clearLayer();
-  const L = layers[0];
-  if (L?.georef_annotation) {
-    await warped.addGeoreferenceAnnotationByUrl(L.georef_annotation);
-    warped.setOpacity(+$('opacity').value);
-  } else if (L) {
-    map.addSource('old', { type: 'raster', tiles: [L.tile_url], tileSize: 256, attribution: esc(L.source) });
-    map.addLayer({ id: 'old', type: 'raster', source: 'old', paint: { 'raster-opacity': +$('opacity').value } });
-  }
-  if (L) {
-    $('meta').innerHTML = `<b>${esc(L.title)}</b> (${L.year})<br>${L.rmse_m ? `±${Math.round(L.rmse_m)} m · ` : ''}` +
-      `${esc(L.license)} · <a href="${esc(L.source_url)}" target="_blank" rel="noopener">source</a>`;
-  }
-  $('here').innerHTML = things.slice(0, 8).map(t =>
-    `<li><a href="${esc(t.wikidata)}" target="_blank" rel="noopener">${esc(t.name)}</a> <span class="muted">${t.start}–${t.end ?? ''} · ${t.distance_m} m</span></li>`).join('');
-}
-</script>
+  <main>
+    <section class="arrival-copy" aria-labelledby="question">
+      <p class="eyebrow" id="eyebrow">New York City</p>
+      <h1 id="question">What stood here?</h1>
+      <form class="search" id="search" role="search">
+        <label class="vh" for="q">An address in New York City</label>
+        <input id="q" name="q" type="search" placeholder="350 5th Avenue, New York" autocomplete="off" spellcheck="false" enterkeyhint="go">
+        <p class="search-status" id="search-status" aria-live="polite"></p>
+      </form>
+      <nav class="samples" aria-label="Addresses with a story">
+        <span class="label">Try</span>
+        <button type="button" data-q="350 5th Avenue, New York">350 5th Avenue</button>
+        <button type="button" data-q="Pennsylvania Station, New York">Penn Station</button>
+        <button type="button" data-q="Columbus Park, Manhattan">Five Points</button>
+        <button type="button" data-q="200 Vesey Street, New York">200 Vesey St</button>
+      </nav>
+    </section>
+
+
+
+    <aside class="card panel" id="card" aria-label="Map on screen" hidden></aside>
+
+    <div class="numeral" id="numeral"></div>
+    <p class="caption" id="caption"></p>
+    <div class="ruler" id="ruler"></div>
+  </main>
+
+  <div class="help" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+    <div class="panel help-panel">
+      <h2 id="help-title">Keys</h2>
+      <dl>
+        <dt><kbd>/</kbd></dt><dd>Type an address</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next year with a map</dd>
+        <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>About a decade back / on</dd>
+        <dt><kbd>C</kbd></dt><dd>Swipe between then and today</dd>
+        <dt><kbd>B</kbd></dt><dd>Hide today's street names</dd>
+        <dt><kbd>O</kbd> <kbd>Shift</kbd>+<kbd>O</kbd></dt><dd>Old map more / less opaque</dd>
+        <dt><kbd>P</kbd></dt><dd>Save this view as a poster (PNG)</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close</dd>
+      </dl>
+      <button class="close" type="button" id="help-close">Close <kbd>Esc</kbd></button>
+    </div>
+  </div>
+
+  <p class="vh" id="announce" aria-live="polite"></p>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

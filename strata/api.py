@@ -4,13 +4,13 @@ from pathlib import Path
 
 import psycopg
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 
 from .whatwashere import what_was_here
 
 DB = os.environ.get("DATABASE_URL", "postgresql://strata:strata@localhost:5432/strata")
-WEB = Path(__file__).resolve().parent.parent / "web"
+WEB = Path(__file__).resolve().parent.parent / "web" / "dist"  # npm run build (in web/)
 app = FastAPI(title="strata")
 
 POINT = "ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)"
@@ -46,11 +46,17 @@ def layers(lat: float = Lat, lon: float = Lon, year: int = Query(ge=1000, le=210
     )
 
 
+@app.get("/api/catalog")
+def catalog():
+    """What the catalog holds, for the arrival screen: map count and every year with a map anywhere."""
+    rows = q("SELECT year, count(*) AS n FROM maps GROUP BY year ORDER BY year")
+    return {"maps": sum(r["n"] for r in rows), "years": [r["year"] for r in rows]}
+
+
 @app.get("/api/whatwashere")
 def whatwashere(lat: float = Lat, lon: float = Lon, year: int = Query(ge=1000, le=2100)):
     return what_was_here(lat, lon, year)
 
 
-@app.get("/")
-def index():
-    return FileResponse(WEB / "index.html")
+if WEB.is_dir():  # after the API routes, so /api/* wins
+    app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

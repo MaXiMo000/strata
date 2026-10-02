@@ -1,0 +1,55 @@
+/* strata tokens. The rules are docs/DESIGN.md; components use these names only, never raw colours.
+   Contrast ratios are measured (WCAG 2.x): first against --night, then against the worst case a panel can sit on,
+   --panel over white paper (#252728). Nothing that carries text is under 4.5:1 in either. */
+:root {
+  color-scheme: dark; /* dark only, by design: the historical maps are the light in the room */
+
+  /* --- colour: six, each with one job --- */
+  --night: #07090b;   /* ground and the base-map land. */
+  --vellum: #efe9dd;  /* primary type. 16.5:1 / 12.4:1 */
+  --slate: #98a0a8;   /* secondary type, base-map labels, minor ticks. 7.5:1 / 5.7:1 */
+  --hair: rgb(239 233 221 / 8%); /* every rule, panel edge and base-map road. Never brighter. */
+  --survey: #f2a93b;  /* "now" only: the year numeral, the current notch, the pin. 10.0:1 / 7.5:1 */
+  --error: #c9a27a;   /* the ±N m readout and the accuracy halo. Nothing else. 8.5:1 / 6.4:1 */
+
+  /* base-map only (never UI): water a breath lighter than land, so the shoreline reads without colour */
+  --water: #0c1114;
+  /* derived grounds, all --night: panels, and the feathered ground under text that sits on the map */
+  --panel: rgb(7 9 11 / 88%);
+  --scrim: rgb(7 9 11 / 86%);
+
+  /* --- type --- */
+  --serif: "Fraunces Variable", "Fraunces", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --sans: "Instrument Sans", system-ui, sans-serif;
+  --t-label: 10px;   /* mono, tracked caps: labels and readouts */
+  --t-small: 12px;
+  --t-body: 14px;
+  --t-title: 19px;   /* serif map titles */
+  --t-question: clamp(40px, 6.2vw, 92px);
+  --t-year: clamp(96px, 16vw, 220px);
+  --track: 0.22em;
+
+  /* --- space: 4px grid --- */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px;
+  --gutter: max(var(--s4), env(safe-area-inset-left));
+  --gutter-r: max(var(--s4), env(safe-area-inset-right));
+  --touch: 44px;
+
+  /* --- motion: one easing; UI 120-220 ms, crossfade 400 ms (camera flights live in JS: 1200 ms) --- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 140ms;
+  --t-ui: 220ms;
+  --t-fade: 400ms;
+
+  /* --- z-layers --- */
+  --z-map: 0; --z-scrim: 1; --z-hud: 10; --z-panel: 20; --z-overlay: 30; --z-skip: 40;
+}
+
+@media (min-width: 1024px) {
+  :root { --gutter: 40px; --gutter-r: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-ui: 0ms; --t-fade: 0ms; }
+}

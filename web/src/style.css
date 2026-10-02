@@ -1,0 +1,214 @@
+/* strata UI. Tokens and their rules: src/tokens.css + docs/DESIGN.md. A thin HUD over a full-bleed map; the map owns
+   every gesture and the page never scrolls. Text that sits over map imagery always has a --night ground under it. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body {
+  background: var(--night);
+  color: var(--vellum);
+  font: 400 var(--t-body) / 1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 1px solid var(--vellum); outline-offset: 3px; }
+.vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip { position: fixed; z-index: var(--z-skip); left: var(--gutter); top: -80px; padding: var(--s2) var(--s3);
+  background: var(--night); border: 1px solid var(--hair); font: 500 var(--t-label) var(--mono); letter-spacing: var(--track);
+  text-transform: uppercase; color: var(--vellum); }
+.skip:focus { top: var(--s4); }
+kbd { font: 500 var(--t-label) / 1 var(--mono); border: 1px solid var(--hair); border-radius: 2px; padding: 3px 5px;
+  color: var(--vellum); }
+.label { margin: 0; font: 500 var(--t-label) / 1.4 var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--slate); }
+
+/* ------------------------------------------------------------------ the scene */
+#map, .today { position: fixed; inset: 0; z-index: var(--z-map); }
+.today { pointer-events: none; clip-path: inset(0 0 0 var(--x, 50%)); }
+body:not(.swiping) .today { display: none; }
+/* Arrival drift: 30 s each way, compositor only. Scaled 8% so the slow translate never shows an edge. */
+@media (prefers-reduced-motion: no-preference) {
+  .arrival:not(.still) .maplibregl-canvas { animation: drift 30s var(--ease) infinite alternate; transform-origin: 50% 50%; }
+}
+@keyframes drift { from { transform: scale(1.08) translate(1.5%, -1%); } to { transform: scale(1.08) translate(-1.5%, 1%); } }
+.maplibregl-ctrl-attrib { background: var(--panel) !important; padding: 2px 6px !important; font: 400 9px var(--mono); letter-spacing: .06em; }
+.maplibregl-ctrl-attrib a, .maplibregl-ctrl-attrib-inner { color: var(--slate) !important; }
+.maplibregl-ctrl-attrib-button { filter: invert(.75); }
+.maplibregl-ctrl-bottom-right { bottom: calc(var(--ruler-h) + env(safe-area-inset-bottom)); right: var(--gutter-r); }
+body { --ruler-h: 76px; }
+
+/* ------------------------------------------------------------------ HUD: fixed, thin, never scrolls */
+.hud { position: fixed; z-index: var(--z-hud); inset: 0 0 auto; display: flex; align-items: center; gap: var(--s6);
+  padding: calc(env(safe-area-inset-top) + var(--s6)) var(--gutter-r) 0 var(--gutter); pointer-events: none; }
+.hud > * { pointer-events: auto; }
+/* The HUD reads over a paper map too: a --night ground under the top band, solid enough for AA at the text line. */
+.hud::before { content: ""; position: absolute; inset: 0 0 auto; height: calc(env(safe-area-inset-top) + 112px); z-index: -1;
+  background: linear-gradient(to bottom, var(--scrim) 0%, var(--scrim) 55%, transparent 100%); pointer-events: none; }
+.arrival .hud::before { display: none; }
+.brand { display: flex; align-items: center; gap: var(--s3); color: var(--vellum); text-decoration: none;
+  font: 500 var(--t-label) var(--mono); letter-spacing: .34em; text-transform: uppercase; min-height: var(--touch); }
+/* The mark is a core sample: three strata and the bore through them. */
+.mark { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: square; }
+.catalog { margin: 0 0 0 auto; order: 0; font: 400 var(--t-label) var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--slate); }
+.key-hint { margin-left: auto; display: flex; align-items: center; gap: var(--s2); min-height: var(--touch); color: var(--slate);
+  font: 500 var(--t-label) var(--mono); letter-spacing: var(--track); text-transform: uppercase; transition: color var(--t-fast) var(--ease); }
+.key-hint:hover { color: var(--vellum); }
+
+/* ------------------------------------------------------------------ arrival */
+/* The question sits on the drifting map; the ground under it is a feathered --night, never a box. */
+/* One column in normal flow: eyebrow, question, address, samples. Only the address leaves it, to dock in the HUD. */
+.arrival-copy { position: fixed; z-index: var(--z-panel); left: var(--gutter); right: var(--gutter-r); top: 0; bottom: var(--ruler-h);
+  display: flex; flex-direction: column; justify-content: center; gap: var(--s6); pointer-events: none; }
+.arrival-copy > * { pointer-events: auto; }
+.arrival-copy::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 80% at 0% 50%, var(--scrim) 30%, transparent 100%); }
+.eyebrow { margin: 0; display: flex; align-items: center; gap: var(--s3);
+  font: 500 var(--t-label) var(--mono); letter-spacing: .3em; text-transform: uppercase; color: var(--slate); }
+.eyebrow::before { content: ""; width: 32px; height: 1px; background: var(--slate); }
+h1 { margin: 0; max-width: 9ch; font: 300 var(--t-question) / .92 var(--serif); letter-spacing: -.025em;
+  font-variation-settings: "opsz" 144, "SOFT" 60, "WONK" 1; text-wrap: balance; }
+
+.search { position: relative; width: min(30rem, 100%); margin: var(--s4) 0 0; }
+.search input { width: 100%; min-height: var(--touch); padding: var(--s3) 0; background: transparent; border: 0;
+  border-bottom: 1px solid var(--slate); border-radius: 0; font: 400 17px var(--mono); color: var(--vellum); outline: none;
+  -webkit-appearance: none; appearance: none; }
+.search input::placeholder { color: var(--slate); }
+.search input:focus { border-bottom-color: var(--vellum); }
+.search input:focus-visible { outline: 1px solid var(--vellum); outline-offset: 6px; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search-status { position: absolute; margin: var(--s2) 0 0; font: 400 var(--t-small) var(--mono); color: var(--slate); }
+
+.samples { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s6); }
+.samples button { min-height: var(--touch); font: 400 var(--t-small) var(--mono); color: var(--vellum);
+  text-decoration: underline dashed var(--slate); text-underline-offset: 6px; transition: text-decoration-color var(--t-fast) var(--ease); }
+.samples button:hover { text-decoration-color: var(--vellum); }
+
+/* ------------------------------------------------------------------ located */
+.located .arrival-copy > :not(.search), .located .arrival-copy::before { display: none; }
+/* The address docks into the HUD as a quiet mono line. */
+.located .search { position: fixed; z-index: var(--z-panel); margin: 0; top: calc(env(safe-area-inset-top) + var(--s6)); left: calc(var(--gutter) + 132px); width: min(26rem, 38vw); }
+.located .search input { font-size: var(--t-small); letter-spacing: .06em; border-bottom-color: var(--hair); padding: var(--s2) 0; }
+.located .search input:hover { border-bottom-color: var(--slate); }
+.located .catalog { display: none; }
+.arrival .key-hint { margin-left: var(--s6); }
+
+/* The year: huge, Fraunces at display optical size, the one --survey thing on screen besides the pin and the notch. */
+.numeral { position: fixed; z-index: var(--z-hud); left: calc(var(--gutter) - .04em); bottom: calc(var(--ruler-h) + 30px + env(safe-area-inset-bottom));
+  display: flex; height: 1em; overflow: hidden; color: var(--survey); font: 300 var(--t-year) / 1 var(--serif);
+  font-variation-settings: "opsz" 144, "SOFT" 30; letter-spacing: -.035em; pointer-events: none; }
+.arrival .numeral { display: none; }
+/* Each digit's box is its own glyph's width (measured in numeral.ts) and eases with the roll, so "1916" isn't gappy. */
+.digit { display: block; height: 1em; overflow: hidden; width: var(--w, .6em); transition: width var(--t-ui) var(--ease); }
+.no-roll .digit { transition: none; }
+.reel { display: block; white-space: pre; line-height: 1; text-align: center; transform: translateY(calc(var(--d, 0) * -1em));
+  transition: transform var(--t-ui) var(--ease); }
+.no-roll .reel { transition: none; }
+/* The numeral stands on a plate of --night: flush to the screen edge and the ruler, solid under the glyphs (AA over a
+   white paper map), feathered only on its two open sides. Straight edges, so it reads as part of the instrument. */
+.numeral::before { content: ""; position: absolute; z-index: -1; top: -.16em; right: -.7em; bottom: calc(-1 * (var(--ruler-h) + 30px));
+  left: calc(-1 * var(--gutter)); background: var(--scrim);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - .55em), transparent), linear-gradient(to bottom, transparent, #000 .2em);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, #000 calc(100% - .55em), transparent), linear-gradient(to bottom, transparent, #000 .2em);
+  mask-composite: intersect; }
+.numeral { overflow: visible; isolation: isolate; }
+.digit { position: relative; }
+.caption { position: fixed; z-index: var(--z-hud); left: var(--gutter); bottom: calc(var(--ruler-h) + 8px + env(safe-area-inset-bottom));
+  margin: 0; font: 400 var(--t-label) var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--slate); }
+.arrival .caption { display: none; }
+
+/* ------------------------------------------------------------------ the ruler */
+.ruler { position: fixed; z-index: var(--z-hud); left: 0; right: 0; bottom: 0; height: calc(var(--ruler-h) + env(safe-area-inset-bottom));
+  padding: 0 var(--gutter-r) env(safe-area-inset-bottom) var(--gutter); background: var(--night); border-top: 1px solid var(--hair);
+  touch-action: none; user-select: none; cursor: ew-resize; }
+.ruler.passive { cursor: default; border-top-color: transparent; background: linear-gradient(to top, var(--night) 60%, transparent); }
+.ruler:focus-visible { outline: none; }
+.ruler:focus-visible .cursor { outline: 1px solid var(--vellum); outline-offset: 4px; }
+.ruler-track { position: relative; height: var(--ruler-h); }
+/* minor ticks every 5 years, decades longer; labels sit under them in mono */
+.tick { position: absolute; top: 0; width: 1px; height: 6px; background: var(--hair); }
+.tick.major { height: 12px; background: color-mix(in srgb, var(--slate) 45%, transparent); } /* fade the tick, not its label */
+.tick[data-label]::after { content: attr(data-label); position: absolute; top: 20px; left: 0; transform: translateX(-50%);
+  font: 400 var(--t-label) var(--mono); letter-spacing: .08em; color: var(--slate); }
+/* notches: only where a map exists. They hang from the top edge like cuts in a rule. */
+.notch { position: absolute; top: 0; width: 1px; height: 26px; margin-left: 0; background: var(--vellum); opacity: .75;
+  transition: height var(--t-fast) var(--ease); }
+.notch.now { background: var(--survey); opacity: 1; height: 34px; width: 2px; margin-left: -.5px; }
+.ruler.passive .notch { height: 16px; opacity: .55; }
+.cursor { position: absolute; top: -7px; left: var(--now, -100px); width: 9px; height: 9px; margin-left: -4px;
+  background: var(--survey); clip-path: polygon(50% 100%, 0 0, 100% 0); transition: left var(--t-ui) var(--ease); }
+.ruler.passive .cursor, .ruler:not([aria-valuenow]) .cursor { display: none; }
+.ruler.dragging .cursor { transition: none; }
+
+/* ------------------------------------------------------------------ layer card */
+.panel { background: var(--panel); border: 1px solid var(--hair); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.card { position: fixed; z-index: var(--z-panel); top: calc(env(safe-area-inset-top) + 76px); right: var(--gutter-r);
+  width: 320px; max-height: calc(100vh - 76px - var(--ruler-h) - var(--t-year) - 80px); overflow: auto; padding: var(--s5); }
+.card .title { margin: var(--s2) 0 var(--s3); font: 400 var(--t-title) / 1.25 var(--serif); letter-spacing: -.01em;
+  font-variation-settings: "opsz" 24; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.readouts { margin: 0; font: 400 var(--t-label) / 1.9 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--slate); }
+.readouts .sep { margin: 0 .5em; opacity: .6; }
+.err { color: var(--error); }
+.source { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--s3); min-height: 32px;
+  font: 500 var(--t-label) var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--vellum);
+  text-decoration: underline dashed var(--slate); text-underline-offset: 5px; }
+.source svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.picker { margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--hair); }
+.picker ol { list-style: none; margin: var(--s2) 0 0; padding: 0; }
+.picker button { display: flex; width: 100%; gap: var(--s3); align-items: baseline; justify-content: space-between; text-align: left;
+  min-height: 36px; padding: var(--s1) 0 var(--s1) var(--s3); border-left: 1px solid transparent; font: 400 var(--t-small) / 1.4 var(--sans);
+  color: var(--slate); transition: color var(--t-fast) var(--ease); }
+.picker button:hover { color: var(--vellum); }
+.picker button[aria-pressed="true"] { color: var(--vellum); border-left-color: var(--vellum); }
+.picker button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker i { font: 400 var(--t-label) var(--mono); font-style: normal; color: var(--error); flex: none; }
+
+/* ------------------------------------------------------------------ swipe compare */
+.swipe { position: fixed; z-index: var(--z-hud); inset: 0 0 var(--ruler-h); pointer-events: none; }
+.swipe-line { position: absolute; top: 0; bottom: 0; left: var(--x); width: 1px; background: var(--vellum); opacity: .7; }
+.swipe-handle { position: absolute; top: 50%; left: var(--x); transform: translate(-50%, -50%); pointer-events: auto; touch-action: none;
+  display: flex; align-items: center; gap: var(--s2); min-height: var(--touch); padding: 0 var(--s3); cursor: ew-resize;
+  background: var(--night); border: 1px solid var(--hair); font: 500 var(--t-label) var(--mono); letter-spacing: .14em; color: var(--slate); }
+.swipe-handle span:first-child { color: var(--survey); }
+.swipe-handle i { font-style: normal; color: var(--slate); }
+
+/* ------------------------------------------------------------------ help */
+.help { position: fixed; z-index: var(--z-overlay); inset: 0; display: grid; place-items: center; padding: var(--s4);
+  background: rgb(7 9 11 / 60%); }
+.help-panel { width: min(28rem, 100%); padding: var(--s6); }
+.help h2 { margin: 0 0 var(--s4); font: 500 var(--t-label) var(--mono); letter-spacing: .3em; text-transform: uppercase; color: var(--slate); }
+.help dl { display: grid; grid-template-columns: auto 1fr; gap: var(--s3) var(--s5); margin: 0; align-items: baseline; }
+.help dt { white-space: nowrap; }
+.help dd { margin: 0; color: var(--vellum); }
+.help .close { margin-top: var(--s6); display: flex; gap: var(--s2); align-items: center; min-height: var(--touch);
+  font: 500 var(--t-label) var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--slate); }
+.help .close:hover { color: var(--vellum); }
+
+/* ------------------------------------------------------------------ phones: the year moves up, the ruler stays at the thumb */
+@media (max-width: 720px) {
+  body { --ruler-h: 64px; }
+  .hud { gap: var(--s3); padding-top: calc(env(safe-area-inset-top) + var(--s2)); }
+  .catalog, .key-hint span { display: none; }
+  .arrival-copy { gap: var(--s4); }
+  .samples { gap: 0 var(--s4); }
+  /* Located: the address takes the top bar, the numeral sits under it, the card docks above the ruler. */
+  .located .search { left: calc(var(--gutter) + 40px); width: calc(100vw - var(--gutter) - var(--gutter-r) - 96px); top: calc(env(safe-area-inset-top) + var(--s2)); }
+  .located .brand b { display: none; }
+  .numeral { --t-year: 72px; bottom: auto; top: calc(env(safe-area-inset-top) + 60px); }
+  .numeral::before { display: none; }
+  .located .hud::before { height: calc(env(safe-area-inset-top) + 196px);
+    background: linear-gradient(to bottom, var(--scrim) 0%, var(--scrim) 80%, transparent 100%); }
+  .caption { bottom: auto; top: calc(env(safe-area-inset-top) + 138px); }
+  .card { top: auto; bottom: calc(var(--ruler-h) + env(safe-area-inset-bottom) + 44px); left: var(--gutter); right: var(--gutter-r);
+    width: auto; max-height: 34vh; padding: var(--s3) var(--s4); }
+  .card .title { font-size: 16px; -webkit-line-clamp: 2; margin: var(--s1) 0 var(--s2); }
+  .maplibregl-ctrl-bottom-right { bottom: calc(var(--ruler-h) + env(safe-area-inset-bottom) + 4px); }
+  .notch { height: 22px; }
+  .notch.now { height: 30px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  body { --ruler-h: 56px; }
+  .numeral { --t-year: 64px; }
+  .card { max-height: calc(100vh - 140px); top: calc(env(safe-area-inset-top) + 56px); width: 280px; }
+  .arrival-copy { gap: var(--s2); }
+  h1 { font-size: 40px; max-width: none; }
+}

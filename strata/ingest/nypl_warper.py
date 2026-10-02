@@ -95,9 +95,9 @@ def run(conn, bbox) -> int:
             row, gcps = to_row(rec, f)
             if not usable(row["rmse_m"]):
                 continue
-            upsert_map(conn, row)
-            upsert_gcps(conn, row["id"], gcps)
-            n += 1
+            if upsert_map(conn, row):
+                upsert_gcps(conn, row["id"], gcps)
+                n += 1
         if i % 50 == 0:
             conn.commit()  # the app sees maps arrive during a long run
             print(f"  {i}/{len(recs)} records, {n} maps")

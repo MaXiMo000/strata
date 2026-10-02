@@ -84,6 +84,5 @@ def run(conn, bbox) -> int:
             xml = ""
         row = to_row(item, xml)
         if row and usable(row["rmse_m"]):  # drops 1:250,000 sheets (±127 m)
-            upsert_map(conn, row)
-            n += 1
+            n += upsert_map(conn, row)
     return n
