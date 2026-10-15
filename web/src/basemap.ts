@@ -14,13 +14,13 @@ export function baseStyle(today = false): StyleSpecification {
   const hair = today ? 0.34 : 0.08;
   const bldg = today ? 0.16 : 0.018;
   const label = {
-    "text-font": ["Noto Sans Regular"],
+    "text-font": ["Instrument Sans Regular"], // self-hosted SDF glyphs in public/fonts (built with fontnik)
     "text-transform": "uppercase" as const,
     "text-letter-spacing": 0.22,
   };
   return {
     version: 8,
-    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    glyphs: `${location.origin}/fonts/{fontstack}/{range}.pbf`,
     sources: {
       osm: {
         type: "vector",

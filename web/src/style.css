@@ -155,7 +155,7 @@ h1 { margin: 0; max-width: 9ch; font: 300 var(--t-question) / .92 var(--serif); 
 /* ------------------------------------------------------------------ layer card */
 .panel { background: var(--panel); border: 1px solid var(--hair); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .card { position: fixed; z-index: var(--z-panel); top: calc(env(safe-area-inset-top) + 76px); right: var(--gutter-r);
-  width: 320px; max-height: calc(100vh - 76px - var(--ruler-h) - var(--t-year) - 80px); overflow: auto; padding: var(--s5); }
+  width: 320px; max-height: calc(100vh - 76px - var(--ruler-h) - 48px); overflow: auto; /* top right: clear of the numeral */ padding: var(--s5); }
 .card .title { margin: var(--s2) 0 var(--s3); font: 400 var(--t-title) / 1.25 var(--serif); letter-spacing: -.01em;
   font-variation-settings: "opsz" 24; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .readouts { margin: 0; font: 400 var(--t-label) / 1.9 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--slate); }
