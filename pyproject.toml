@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+autogeoref = ["anthropic>=1"]  # python -m strata.autogeoref
 
 [build-system]
 requires = ["setuptools>=68"]

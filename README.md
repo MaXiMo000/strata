@@ -148,6 +148,11 @@ Standard for their scale.
 | David Rumsey Map Collection | Allmaps annotations + LUNA | CC BY-NC-SA 3.0 (non-commercial) |
 | Leventhal Map Center and others | Allmaps annotations + IIIF manifests | per item, as published |
 
+**Automatic georeferencing (prototype).** `python -m strata.autogeoref <map id>` reads the street intersections on a
+scan with Claude, finds them in today's OpenStreetMap, fits the alignment with RANSAC (ambiguous street names and
+misreadings are outvoted), and reports the result against the map's hand-placed control points. Needs
+`pip install -e ".[autogeoref]"` and an Anthropic API key; a 2 x 2 tiling costs about $0.20 per map.
+
 Ingesters keep a map only if it covers New York City, has at least four control points (or a published accuracy), an
 error under 100 m, a datable year, and an image that still matches its georeferencing.
 

@@ -83,3 +83,19 @@ def test_merge_keeps_one_dated_entry_per_place_oldest_first():
     assert [p["name"] for p in out] == ["Washing Establishment", "Waldorf–Astoria", "Empire State Building"]
     assert out[-1]["source"] == "wikidata"  # Wikidata first, so its entry (and link) wins the duplicate
     assert (_year("1917-06-03"), _year("~1850"), _year("-0500-01-01T00:00:00Z"), _year(None)) == (1917, 1850, -500, None)
+
+
+def test_ransac_recovers_the_alignment_despite_wrong_and_ambiguous_matches():
+    from strata.autogeoref import evaluate, ransac, tiles
+
+    truth = synthetic_gcps()  # 6 points under a known affine
+    cands = [(px, py, [(lon, lat)]) for px, py, lon, lat in truth]
+    cands[0][2].append((-73.97, 40.58))  # the same street names elsewhere in the city (Coney Island)
+    cands[1][2].append((-73.95, 40.85))
+    cands += [(500 + 300 * i, 700, [(-73.90 + 0.01 * i, 40.80)]) for i in range(4)]  # misread or mis-geocoded
+    M, inliers = ransac(cands)
+    assert len(inliers) == 6
+    assert evaluate(M, truth)["max_m"] < 1
+    assert ransac(cands[:2]) is None  # too few points to say anything
+    assert tiles(4000, 3000, 2) == [(0, 0, 2000, 1500, 1500), (2000, 0, 2000, 1500, 1500),
+                                    (0, 1500, 2000, 1500, 1500), (2000, 1500, 2000, 1500, 1500)]
