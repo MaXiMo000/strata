@@ -90,12 +90,23 @@ def from_manifest(m: dict) -> tuple[int | None, str]:
     return year, rights or "see-source"
 
 
-def from_loc(manifest: str) -> tuple[int | None, str, str]:
-    """www.loc.gov/item/<id>/manifest.json sits behind a bot check; the item's ?fo=json doesn't."""
-    item_url = manifest.removesuffix("manifest.json")
-    it = get_json(item_url, {"fo": "json"})["item"]
+def loc_parts(resource_id: str) -> tuple[str, int | None]:
+    """LOC image ids name their item and page: ...:g3804bm:g3804bm_g05791188809:05791_09_1888-0012 is item
+    g3804bm.g3804bm_g05791188809 (one atlas volume), sheet 12. Manifests are often hosted elsewhere, so read the id."""
+    parts = resource_id.rsplit("/", 1)[-1].split(":")
+    page = re.search(r"(\d+)$", parts[-1])
+    return f"{parts[-3]}.{parts[-2]}", int(page.group(1)) if page else None
+
+
+def from_loc(resource_id: str) -> tuple[int | None, str, str, str, str]:
+    """(year, license, page URL, title, atlas id) from LOC's JSON API (its manifest URLs sit behind a bot check)."""
+    resource, sheet = loc_parts(resource_id)
+    it = get_json(f"https://www.loc.gov/resource/{resource}/", {"fo": "json"})["item"]
     advisory = _text(it.get("rights_advisory"))
-    return year_in(_text(it.get("date"))), advisory or "no-known-restrictions", item_url
+    title = _text(it.get("title")).strip().rstrip(".")
+    url = f"https://www.loc.gov/resource/{resource}/" + (f"?sp={sheet}" if sheet else "")
+    return (year_in(_text(it.get("date"))), advisory or "no-known-restrictions", url,
+            f"{title}, sheet {sheet}" if sheet else title, f"loc:{resource}")
 
 
 def from_rumsey(resource_id: str) -> tuple[int | None, int | None, str]:
@@ -106,7 +117,7 @@ def from_rumsey(resource_id: str) -> tuple[int | None, int | None, str]:
     return year_in(fields.get("date")), year_in(fields.get("pub_date")), (d.get("displayName") or "").strip()
 
 
-def to_row(feature: dict, year: int, license: str, source_url: str | None, title: str, year_published=None):
+def to_row(feature: dict, year: int, license: str, source_url: str | None, title: str, year_published=None, atlas_id=None):
     p = feature["properties"]
     map_id = p["id"].rsplit("/", 1)[-1]
     gcps = [(g["resource"][0], g["resource"][1], g["geo"][0], g["geo"][1]) for g in p["gcps"]]
@@ -124,28 +135,29 @@ def to_row(feature: dict, year: int, license: str, source_url: str | None, title
         "tile_url": TILES.format(map_id),
         "iiif_manifest": manifest_url(feature),
         "georef_annotation": p["id"],
+        "atlas_id": atlas_id,
     }, gcps
 
 
 def describe(feature: dict) -> tuple | None:
-    """(year, license, source_url, title, year_published) for one map, or None if it can't be dated."""
+    """(year, license, source_url, title, year_published, atlas_id) for one map, or None if it can't be dated."""
     p, manifest = feature["properties"], manifest_url(feature)
     label = _text((p["resource"].get("partOf") or [{}])[0].get("partOf", [{}])[0].get("label")) if manifest else ""
     h = host(feature)
-    if h == "tile.loc.gov" and manifest:
-        year, lic, url = from_loc(manifest)
-        return (year, lic, url, label, None) if year else None
+    if h == "tile.loc.gov":
+        year, lic, url, title, atlas = from_loc(p["resource"]["id"])
+        return (year, lic, url, title or label, None, atlas) if year else None
     if h == "www.davidrumsey.com":
         year, pub, name = from_rumsey(p["resource"]["id"])
         title = label or name or "Untitled map (David Rumsey Map Collection)"
         url = "https://www.davidrumsey.com/luna/servlet/detail/" + p["resource"]["id"].rsplit("/", 1)[-1]
-        return (year or pub, "CC-BY-NC-SA-3.0", url, title, pub) if (year or pub) else None
+        return (year or pub, "CC-BY-NC-SA-3.0", url, title, pub, None) if (year or pub) else None
     if not manifest:
         return None
     m = get_json(manifest)
     year, lic = from_manifest(m)
     title = label or _text(m.get("label"))
-    return (earliest(year, title), lic, manifest, title, None) if year else None
+    return (earliest(year, title), lic, manifest, title, None, None) if year else None
 
 
 def run(conn, bbox) -> int:
@@ -165,8 +177,8 @@ def run(conn, bbox) -> int:
         if not info or not f.get("geometry"):
             skipped += 1
             continue
-        year, lic, url, title, pub = info
-        row, gcps = to_row(f, year, lic, url, title or "Untitled map", pub)
+        year, lic, url, title, pub, atlas = info
+        row, gcps = to_row(f, year, lic, url, title or "Untitled map", pub, atlas)
         if not usable(row["rmse_m"]) or not image_matches(f["properties"]["resource"]):
             skipped += 1
             continue

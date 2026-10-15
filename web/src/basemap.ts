@@ -60,6 +60,7 @@ export function baseStyle(today = false): StyleSpecification {
       },
       {
         id: "street-names", type: "symbol", source: "osm", "source-layer": "transportation_name", minzoom: 14,
+        filter: ["!=", ["get", "class"], "ferry"], // ferry routes would label open water
         layout: { ...label, "symbol-placement": "line", "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]], "text-size": 10 },
         paint: { "text-color": vellum, "text-opacity": 0.62, "text-halo-color": night, "text-halo-width": 0.9, "text-halo-blur": 0.8 },
       },

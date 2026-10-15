@@ -46,16 +46,27 @@ def timeline(lat: float = Lat, lon: float = Lon):
 
 @app.get("/api/layers")
 def layers(lat: float = Lat, lon: float = Lon, year: int = Query(ge=1000, le=2100), limit: int = Query(5, le=20)):
-    """Best maps for (point, year): closest in time, then most detailed, then most accurate."""
+    """Best maps for (point, year): closest in time, then most detailed, then most accurate. An atlas volume counts
+    once (its best sheet here); the client draws the rest of the volume around it."""
+    rank = "abs(year - %(year)s), scale_denom NULLS LAST, rmse_m NULLS LAST"
     return q(
         f"""SELECT id, title, source, source_url, license, year, scale_denom, rmse_m, method, tile_url, georef_annotation,
-                   ARRAY[ST_XMin(footprint), ST_YMin(footprint), ST_XMax(footprint), ST_YMax(footprint)] AS bounds
-            FROM maps
-            WHERE ST_Covers(footprint, {POINT})
-            ORDER BY abs(year - %(year)s), scale_denom NULLS LAST, rmse_m NULLS LAST
+                   atlas_id, bounds
+            FROM (SELECT *, ARRAY[ST_XMin(footprint), ST_YMin(footprint), ST_XMax(footprint), ST_YMax(footprint)] AS bounds,
+                         row_number() OVER (PARTITION BY coalesce(atlas_id, id) ORDER BY {rank}) AS nth
+                  FROM maps WHERE ST_Covers(footprint, {POINT})) m
+            WHERE nth = 1
+            ORDER BY {rank}
             LIMIT %(limit)s""",
         lat=lat, lon=lon, year=year, limit=limit,
     )
+
+
+@app.get("/api/atlas")
+def atlas(id: str = Query(min_length=3, max_length=200)):
+    """Every georeferenced sheet of one atlas volume, so the client can draw them as one mosaic."""
+    return [r["georef_annotation"] for r in q(
+        "SELECT georef_annotation FROM maps WHERE atlas_id = %(id)s AND georef_annotation IS NOT NULL ORDER BY id", id=id)]
 
 
 @app.get("/api/catalog")

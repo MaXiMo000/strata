@@ -10,6 +10,7 @@ export interface Layer {
   method: string | null;
   tile_url: string;
   georef_annotation: string | null;
+  atlas_id: string | null; // sheets of one atlas volume share it and draw as one mosaic
   bounds: [number, number, number, number]; // footprint bbox, lon/lat
 }
 
@@ -27,6 +28,8 @@ const json = async <T>(url: string, signal?: AbortSignal): Promise<T> => {
 
 export const timeline = (lat: number, lon: number, signal?: AbortSignal) =>
   json<number[]>(`/api/timeline?lat=${lat}&lon=${lon}`, signal);
+
+export const atlasSheets = (id: string) => json<string[]>(`/api/atlas?id=${encodeURIComponent(id)}`);
 
 export const catalog = () => json<{ maps: number; years: number[] }>("/api/catalog");
 

@@ -5,7 +5,7 @@
 import type { Map as MlMap } from "maplibre-gl";
 // Allmaps is most of the bundle and the arrival screen doesn't need it: loaded with the first warped map.
 const allmaps = () => import("@allmaps/maplibre");
-import type { Layer } from "./api";
+import { atlasSheets, type Layer } from "./api";
 
 interface Handle {
   layer: Layer;
@@ -74,13 +74,18 @@ export class History {
         setOpacity: (o) => w?.setOpacity(o),
         remove: () => { removed = true; if (this.map.getLayer(id)) this.map.removeLayer(id); },
       };
-      allmaps().then(({ WarpedMapLayer }) => {
+      allmaps().then(async ({ WarpedMapLayer }) => {
         if (removed) return;
         const layerObj = new WarpedMapLayer({ layerId: id });
         this.map.addLayer(layerObj, this.beforeId);
         layerObj.setOpacity(h.o);
         w = layerObj;
-        return layerObj.addGeoreferenceAnnotationByUrl(layer.georef_annotation!);
+        await layerObj.addGeoreferenceAnnotationByUrl(layer.georef_annotation!);
+        // The rest of its atlas volume joins the same layer, so neighbouring sheets appear as you pan.
+        if (layer.atlas_id && !removed) {
+          const others = (await atlasSheets(layer.atlas_id)).filter((u) => u !== layer.georef_annotation);
+          await Promise.all(others.map((u) => layerObj.addGeoreferenceAnnotationByUrl(u).catch(() => null)));
+        }
       }).catch((e) => console.error("warped map", layer.id, e));
       return h;
     }

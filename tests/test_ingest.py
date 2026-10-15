@@ -127,3 +127,28 @@ def test_same_image_accepts_rescales_and_recrops_but_not_a_rotated_scan():
     assert ingest.same_image(6366, 3468, 3183, 1734)      # exact half size
     assert not ingest.same_image(6366, 3468, 2754, 5950)  # rotated / replaced scan
     assert not ingest.same_image(5008, 5723, 5243, 4203)  # orientation flipped
+
+
+def test_loc_image_ids_name_their_atlas_volume_and_sheet():
+    from strata.ingest.allmaps import loc_parts
+
+    base = "https://tile.loc.gov/image-services/iiif/service:gmd:gmd380m:g3804m:"
+    assert loc_parts(base + "g3804bm:g3804bm_g05791188809:05791_09_1888-0012") == ("g3804bm.g3804bm_g05791188809", 12)
+    assert loc_parts(base + "g3804nm:gla00209:ca000012") == ("g3804nm.gla00209", 12)
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="needs a PostGIS test DB (DATABASE_URL)")
+def test_layers_lists_an_atlas_volume_once():
+    from strata import api
+
+    sheets = [MAP | {"id": f"test:atlas-sheet{i}", "atlas_id": "test:atlas", "year": 1700} for i in (1, 2)]
+    with ingest.connect() as conn:
+        for s in sheets:
+            ingest.upsert_map(conn, s)
+    try:
+        rows = [r for r in api.layers(lat=40.75, lon=-73.95, year=1700, limit=20) if r["atlas_id"] == "test:atlas"]
+        assert len(rows) == 1 and rows[0]["bounds"] == [-74.0, 40.7, -73.9, 40.8]
+        assert set(api.atlas(id="test:atlas")) == set()  # no annotations on these test sheets
+    finally:
+        with ingest.connect() as conn:
+            conn.execute("DELETE FROM maps WHERE atlas_id = 'test:atlas'")
