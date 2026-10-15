@@ -1,6 +1,7 @@
 // Historical layers: one handle per map, kept in a small pool so the neighbouring years are already loading
 // (opacity 0) when the ruler moves, and a change of year is a 400 ms crossfade, never a pop.
-// Allmaps maps are warped here in the browser: the Allmaps tile server is blocked by NYPL/LOC (docs/ARCHITECTURE.md, Tiles).
+// Allmaps maps are warped here in the browser: the Allmaps tile server (on Cloudflare) is blocked by
+// NYPL's and LOC's image servers, while requests from the viewer's browser are allowed.
 import type { Map as MlMap } from "maplibre-gl";
 // Allmaps is most of the bundle and the arrival screen doesn't need it: loaded with the first warped map.
 const allmaps = () => import("@allmaps/maplibre");

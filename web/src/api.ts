@@ -33,7 +33,7 @@ export const catalog = () => json<{ maps: number; years: number[] }>("/api/catal
 export const layers = (lat: number, lon: number, year: number, signal?: AbortSignal) =>
   json<Layer[]>(`/api/layers?lat=${lat}&lon=${lon}&year=${year}&limit=8`, signal);
 
-// Photon (komoot), biased to New York City: the pilot city. Fair use only; production self-hosts (DATA_SOURCES.md).
+// Photon (komoot), biased to New York City: the pilot city. Fair use only: self-host a geocoder for real traffic.
 const NYC = "-74.26,40.49,-73.70,40.92";
 export async function geocode(q: string, signal?: AbortSignal): Promise<Place | null> {
   const r = await json<{ features: { geometry: { coordinates: [number, number] }; properties: Record<string, string> }[] }>(

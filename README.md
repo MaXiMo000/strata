@@ -93,11 +93,35 @@ Dark only, by design: the historical maps are the light in the room.
 Fraunces for the year and map titles, IBM Plex Mono for every number, Instrument Sans for controls; all self-hosted.
 Text over map imagery always stands on a `--night` ground, and every token clears WCAG AA on it.
 
-## Docs
+## How it works
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): system, data model, ranking, tiles, frontend, API
-- [docs/GEOREFERENCING.md](docs/GEOREFERENCING.md): control points, transforms, error, automatic georeferencing
-- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md): collections, endpoints, licenses
+**Catalog.** PostGIS holds one row per map (`schema.sql`): the mapped footprint after warping, survey and publication
+year, scale, error, method, license, and how to draw it (a Georeference Annotation or an XYZ tile URL).
+`/api/layers` ranks the maps covering a point by closeness in time, then detail (scale), then accuracy.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/timeline?lat&lon` | every year with a map covering the point |
+| `GET /api/layers?lat&lon&year&limit` | the best maps for that point and year, with license, error and bounds |
+| `GET /api/whatwashere?lat&lon&year` | Wikidata places nearby that existed that year |
+| `GET /api/catalog` | map count and years, for the start screen |
+
+**Error.** For maps with control points, strata refits the alignment without each point in turn and measures how far
+that point lands from where it should (leave-one-out RMSE, in ground metres). USGS maps use the National Map Accuracy
+Standard for their scale.
+
+**Sources.**
+
+| Collection | Reached through | License |
+|---|---|---|
+| NYPL Map Division (Map Warper georeferencing) | NYPL Space/Time dataset + Allmaps annotations | public domain to 1930; later items unverified |
+| USGS Historical Topographic Maps | TNM Access API; COGs on USGS's S3 | public domain |
+| Library of Congress | Allmaps annotations + loc.gov JSON | no known restrictions (per item) |
+| David Rumsey Map Collection | Allmaps annotations + LUNA | CC BY-NC-SA 3.0 (non-commercial) |
+| Leventhal Map Center and others | Allmaps annotations + IIIF manifests | per item, as published |
+
+Ingesters keep a map only if it covers New York City, has at least four control points (or a published accuracy), an
+error under 100 m, a datable year, and an image that still matches its georeferencing.
 
 ## License
 

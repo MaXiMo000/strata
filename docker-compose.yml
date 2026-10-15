@@ -9,7 +9,7 @@ services:
     volumes:
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
       - pg:/var/lib/postgresql/data
-  # Phase 1c: serves COGs you warp yourself (USGS, custom georefs). Allmaps-sourced layers need no server.
+  # Tiles for USGS maps (read in place from USGS's own COGs). Allmaps maps are warped in the browser and need no server.
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
     ports: ["8001:80"]
