@@ -3,24 +3,17 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/instrument-sans/latin-400.css";
 import "@fontsource/instrument-sans/latin-500.css";
-import "maplibre-gl/dist/maplibre-gl.css";
 import "./tokens.css";
 import "./style.css";
 
-import * as maplibregl from "maplibre-gl";
-import type { GeoJSONSource } from "maplibre-gl";
-// MapLibre 6 finds its worker next to its own module, which bundling breaks: hand Vite the worker to bundle instead.
-import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import * as api from "./api";
 import type { Layer, Place } from "./api";
-import { LABEL_LAYERS, baseStyle } from "./basemap";
-import { History } from "./layers";
 import { Numeral } from "./numeral";
 import { Ruler } from "./ruler";
+import type { Scene } from "./scene";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-const token = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 // ---------------------------------------------------------------- state
 const state = {
@@ -31,64 +24,26 @@ const state = {
   chosen: null as Layer | null,
   cache: new Map<number, Promise<Layer[]>>(),
   labels: true,
+  zoom: 16.4,
+  wantedMap: new URLSearchParams(location.search).get("map"), // a shared link can name the map, not just the year
+  wantSwipe: new URLSearchParams(location.search).has("swipe"), // honoured once the first map is chosen
 };
 
-// ---------------------------------------------------------------- map
-maplibregl.setWorkerUrl(workerUrl);
-const START = { center: [-73.9967, 40.7306] as [number, number], zoom: 13.2 };
-const map = new maplibregl.Map({
-  container: "map",
-  style: baseStyle(),
-  center: START.center,
-  zoom: START.zoom,
-  maxPitch: 0, // WarpedMapLayer doesn't support pitch
-  dragRotate: false,
-  attributionControl: { compact: true },
-  canvasContextAttributes: { preserveDrawingBuffer: true }, // poster export reads the canvas back
-});
-map.touchZoomRotate.disableRotation();
-map.on("error", (e) => console.error("map:", e.error?.message ?? e)); // tile/CORS failures must be visible, never silent
-if (import.meta.env.DEV) Object.assign(window, { strataMap: map });
-const history = new History(map, LABEL_LAYERS[0]);
+// ---------------------------------------------------------------- the map, on first intent
+// The arrival screen is a still picture of the same view (style.css), so MapLibre (most of the JavaScript) loads only
+// when someone reaches for the page, or when the URL already names a place.
+let scene: Promise<Scene> | null = null;
+let live: Scene | null = null;
+const getScene = () => (scene ??= import("./scene").then(({ createScene }) => {
+  live = createScene(() => { if (live) state.zoom = live.zoom(); if (state.place) writeUrl(); });
+  return live;
+}));
+for (const ev of ["pointerdown", "pointermove", "focusin", "keydown", "touchstart", "wheel"] as const)
+  addEventListener(ev, () => void getScene(), { once: true, passive: true, capture: true });
 
-// "load" waits for every initial tile, so one slow tile would hold the whole app hostage. Map additions only need the
-// style parsed ("style.load"); nothing else waits for the map at all.
-const styleReady = new Promise<void>((resolve) => (map.isStyleLoaded() ? resolve() : map.once("style.load", () => resolve())));
-styleReady.then(() => {
-  map.addSource("here", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addSource("halo", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  const error = token("--error"), survey = token("--survey"), night = token("--night");
-  map.addLayer({ id: "halo-fill", type: "fill", source: "halo", paint: { "fill-color": error, "fill-opacity": 0.12 } });
-  map.addLayer({ id: "halo-line", type: "line", source: "halo", paint: { "line-color": error, "line-opacity": 0.7, "line-width": 1 } });
-  map.addLayer({ id: "pin", type: "circle", source: "here",
-    paint: { "circle-radius": 5, "circle-color": survey, "circle-stroke-color": night, "circle-stroke-width": 2 } });
-  drawPin();
-});
-
-/** A circle of `m` metres around the point, as a polygon: the honest size of "you are here" on this map. */
-function circle(lon: number, lat: number, m: number) {
-  const ring: [number, number][] = [];
-  for (let i = 0; i <= 64; i++) {
-    const a = (i / 64) * 2 * Math.PI;
-    ring.push([lon + (m * Math.cos(a)) / (111320 * Math.cos((lat * Math.PI) / 180)), lat + (m * Math.sin(a)) / 110540]);
-  }
-  return { type: "Feature" as const, properties: {}, geometry: { type: "Polygon" as const, coordinates: [ring] } };
-}
-
-function drawPin() {
-  const p = state.place, here = map.getSource("here") as GeoJSONSource | undefined, halo = map.getSource("halo") as GeoJSONSource | undefined;
-  here?.setData({ type: "FeatureCollection", features: p ? [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [p.lon, p.lat] } }] : [] });
-  const r = state.chosen?.rmse_m;
-  halo?.setData({ type: "FeatureCollection", features: p && r ? [circle(p.lon, p.lat, r)] : [] });
-}
-
-// ---------------------------------------------------------------- arrival drift
-// The drift is a CSS transform on the rendered canvas (style.css): the compositor moves pixels, MapLibre renders nothing
-// and fetches no tiles. It stops for good at the first touch.
-function startDrift() {
-  for (const ev of ["pointerdown", "wheel", "keydown"] as const) addEventListener(ev, stopDrift, { once: true, capture: true });
-}
+// The drift (style.css) is compositor-only; it stops for good at the first touch.
 const stopDrift = () => document.body.classList.add("still");
+for (const ev of ["pointerdown", "wheel", "keydown"] as const) addEventListener(ev, stopDrift, { once: true, capture: true });
 
 // ---------------------------------------------------------------- components
 const numeral = new Numeral($("numeral"));
@@ -100,6 +55,7 @@ const ruler = new Ruler($("ruler"), (y) => selectYear(y), (y) => {
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 const announce = (s: string) => { $("announce").textContent = s; };
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 function renderCard() {
   const card = $("card"), L = state.chosen;
@@ -124,7 +80,6 @@ function renderCard() {
     ${L.source_url ? `<a class="source" href="${esc(L.source_url)}" target="_blank" rel="noopener">Source<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1h6v6M9 1 1.5 8.5"/></svg></a>` : ""}
     ${others}`;
 }
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 $("card").addEventListener("click", (e) => {
   const id = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-id]")?.dataset.id;
@@ -153,8 +108,9 @@ function selectYear(year: number) {
     const ls = await layersFor(year).catch(() => []);
     if (state.year !== year) return; // the ruler has moved on
     state.layers = ls;
-    const wanted = new URLSearchParams(location.search).get("map");
-    choose(ls.find((l) => l.id === wanted) ?? ls[0] ?? null);
+    const wanted = ls.find((l) => l.id === state.wantedMap);
+    state.wantedMap = null;
+    choose(wanted ?? ls[0] ?? null);
     announce(`${year}: ${state.chosen?.title ?? "no map"}`);
   }, 90);
 }
@@ -162,15 +118,17 @@ function selectYear(year: number) {
 async function choose(L: Layer | null) {
   state.chosen = L;
   renderCard();
-  drawPin();
+  if (state.wantSwipe && L) { state.wantSwipe = false; setSwipe(true); }
+  writeUrl();
   ruler.set(state.year);
+  const s = await getScene();
+  s.setPin(state.place, L?.rmse_m ?? null);
   // Neighbouring years start loading underneath, so the next step is a crossfade, not a wait.
   const i = state.years.indexOf(state.year ?? NaN);
   const near = [state.years[i - 1], state.years[i + 1]].filter((y): y is number => y !== undefined);
-  await styleReady;
-  history.show(L);
+  await s.show(L);
   const preload = (await Promise.all(near.map((y) => layersFor(y).catch(() => [])))).map((ls) => ls[0]).filter((l): l is Layer => !!l);
-  if (state.chosen === L) history.show(L, preload);
+  if (state.chosen === L) await s.show(L, preload);
 }
 
 function defaultYear(years: number[]) {
@@ -181,6 +139,7 @@ function defaultYear(years: number[]) {
 async function locate(q: string, opts: { lat?: number; lon?: number; year?: number; zoom?: number } = {}) {
   const status = $("search-status");
   status.textContent = "Looking…";
+  const sceneReady = getScene();
   let place: Place | null;
   try {
     place = opts.lat != null && opts.lon != null ? { label: q, lat: opts.lat, lon: opts.lon } : await api.geocode(q);
@@ -191,12 +150,10 @@ async function locate(q: string, opts: { lat?: number; lon?: number; year?: numb
   stopDrift();
   state.place = place;
   state.cache.clear();
+  state.zoom = opts.zoom ?? 16.4;
   $<HTMLInputElement>("q").value = place.label;
   document.body.classList.replace("arrival", "located");
-  const center: [number, number] = [place.lon, place.lat];
-  if (reduced()) map.jumpTo({ center, zoom: opts.zoom ?? 16.4 });
-  else map.flyTo({ center, zoom: opts.zoom ?? 16.4, duration: 1200, easing: (t) => 1 - Math.pow(1 - t, 3) });
-  drawPin();
+  sceneReady.then((s) => { s.fly([place!.lon, place!.lat], state.zoom, reduced()); s.setPin(place, null); });
 
   const years: number[] = await api.timeline(place.lat, place.lon).catch(() => []);
   state.years = years;
@@ -210,17 +167,16 @@ async function locate(q: string, opts: { lat?: number; lon?: number; year?: numb
   selectYear(year);
 }
 
-// ---------------------------------------------------------------- URL state: ?q=&lat=&lon=&z=&year=&map=&swipe=
+// ---------------------------------------------------------------- URL state: ?q=&lat=&lon=&z=&year=&swipe=
 function writeUrl() {
   if (!state.place) return;
   const u = new URLSearchParams({ q: state.place.label, lat: state.place.lat.toFixed(5), lon: state.place.lon.toFixed(5),
-    z: map.getZoom().toFixed(1) });
+    z: state.zoom.toFixed(1) });
   if (state.year) u.set("year", String(state.year));
+  if (state.chosen && state.chosen !== state.layers[0]) u.set("map", state.chosen.id);
   if (swipe.on) u.set("swipe", "1");
-  history_.replaceState(null, "", `?${u}`);
+  window.history.replaceState(null, "", `?${u}`);
 }
-const history_ = window.history;
-map.on("moveend", () => state.place && writeUrl());
 
 // ---------------------------------------------------------------- swipe compare (C): then │ today
 const swipe = { on: false, x: 0.5 };
@@ -228,30 +184,17 @@ const swipeEl = Object.assign(document.createElement("div"), { className: "swipe
 swipeEl.innerHTML = `<div class="swipe-line"></div><button class="swipe-handle" type="button" aria-label="Swipe position: drag, or use the arrow keys"><span id="swipe-then"></span><i>│</i><span>${new Date().getFullYear()}</span></button>`;
 document.querySelector("main")!.append(swipeEl);
 
-// "Today" is a second, non-interactive map in our base style turned up so the modern city reads, clipped to the
-// right of the line and following the main camera. Created on first use.
-let today: maplibregl.Map | null = null;
-function ensureToday() {
-  if (today) return today;
-  const el = Object.assign(document.createElement("div"), { className: "today", ariaHidden: "true" });
-  $("map").after(el);
-  today = new maplibregl.Map({ container: el, style: baseStyle(true), interactive: false, attributionControl: false,
-    center: map.getCenter(), zoom: map.getZoom() });
-  map.on("move", () => today!.jumpTo({ center: map.getCenter(), zoom: map.getZoom() }));
-  return today;
-}
-
-function setSwipe(on: boolean) {
+async function setSwipe(on: boolean) {
   swipe.on = on && !!state.chosen;
-  if (swipe.on) ensureToday().resize();
   swipeEl.hidden = !swipe.on;
-  document.body.classList.toggle("swiping", swipe.on);
+  document.body.classList.toggle("swiping", swipe.on); // first: the today map must be visible to measure its size
+  if (swipe.on) (await getScene()).showToday();
   clipSwipe();
   writeUrl();
 }
 function clipSwipe() {
   $("swipe-then").textContent = String(state.year ?? "");
-  swipeEl.style.setProperty("--x", `${swipe.x * 100}%`);
+  document.body.style.setProperty("--x", `${swipe.x * 100}%`); // read by the line, the handle and the today map's clip
 }
 {
   const handle = swipeEl.querySelector<HTMLButtonElement>(".swipe-handle")!;
@@ -273,35 +216,11 @@ function clipSwipe() {
 // ---------------------------------------------------------------- poster export (P)
 async function poster() {
   if (!state.place || !state.year) return;
-  await document.fonts.ready;
-  map.triggerRepaint();
-  await new Promise((r) => map.once("render", r));
-  const src = map.getCanvas(), dpr = devicePixelRatio || 1;
-  const c = document.createElement("canvas");
-  c.width = src.width; c.height = src.height;
-  const g = c.getContext("2d")!;
-  g.drawImage(src, 0, 0);
-  const band = Math.round(c.height * 0.3);
-  const grad = g.createLinearGradient(0, c.height - band, 0, c.height);
-  grad.addColorStop(0, "rgba(7,9,11,0)"); grad.addColorStop(0.45, token("--scrim")); grad.addColorStop(1, token("--night"));
-  g.fillStyle = grad; g.fillRect(0, c.height - band, c.width, band);
-  const pad = 40 * dpr, size = Math.min(220 * dpr, c.width * 0.16);
-  g.fillStyle = token("--survey");
-  g.font = `400 ${size}px "Fraunces Variable"`;
-  g.fillText(String(state.year), pad, c.height - pad - 34 * dpr);
-  g.fillStyle = token("--vellum");
-  g.font = `500 ${13 * dpr}px "IBM Plex Mono"`;
-  g.fillText(state.place.label.toUpperCase(), pad, c.height - pad);
-  g.fillStyle = token("--slate");
-  g.font = `400 ${11 * dpr}px "IBM Plex Mono"`;
   const L = state.chosen;
   const credit = L ? `${L.title.slice(0, 80)} · ${api.sourceName(L.source)} · ${api.licenseName(L.license)}${L.rmse_m ? ` · ±${Math.round(L.rmse_m)} m` : ""}` : "";
-  g.textAlign = "right";
-  g.fillText(credit, c.width - pad, c.height - pad);
-  g.fillText("STRATA · BASE © OPENSTREETMAP", c.width - pad, c.height - pad - 18 * dpr);
   const a = document.createElement("a");
   a.download = `strata-${state.year}-${state.place.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
-  a.href = c.toDataURL("image/png");
+  a.href = await (await getScene()).poster(state.year, state.place.label, credit);
   a.click();
   announce("Poster saved");
 }
@@ -332,13 +251,14 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     const y = ruler.step((e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 10 : 1));
     if (y && y !== state.year) selectYear(y);
-  } else if (k === "b") {
+  } else if (!state.place) return; // the rest act on a located map
+  else if (k === "b") {
     state.labels = !state.labels;
-    for (const id of LABEL_LAYERS) map.setLayoutProperty(id, "visibility", state.labels ? "visible" : "none");
+    live?.setLabels(state.labels);
     announce(state.labels ? "Today's names shown" : "Today's names hidden");
-  } else if (k === "o") {
-    history.setOpacity(history.opacity + (e.shiftKey ? -0.1 : 0.1));
-    announce(`Old map ${Math.round(history.opacity * 100)}% opaque`);
+  } else if (k === "o" && live) {
+    live.setOpacity(live.opacity + (e.shiftKey ? -0.1 : 0.1));
+    announce(`Old map ${Math.round(live.opacity * 100)}% opaque`);
   } else if (k === "c") setSwipe(!swipe.on);
   else if (k === "p") poster();
 });
@@ -362,8 +282,7 @@ async function boot() {
   }).catch(() => {});
   const u = new URLSearchParams(location.search);
   const lat = Number(u.get("lat")), lon = Number(u.get("lon"));
-  if (u.get("q") && Number.isFinite(lat) && Number.isFinite(lon) && u.get("lat")) {
+  if (u.get("q") && u.get("lat") && Number.isFinite(lat) && Number.isFinite(lon)) {
     await locate(u.get("q")!, { lat, lon, year: Number(u.get("year")) || undefined, zoom: Number(u.get("z")) || undefined });
-    if (u.get("swipe")) setTimeout(() => setSwipe(true), 400);
-  } else startDrift();
+  }
 }

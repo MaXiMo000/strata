@@ -1,5 +1,7 @@
 # strata
 
+![350 5th Avenue in 1916: an NYPL map warped over today's city, with the year, the ruler and the map's error](docs/screenshots/located-1440.webp)
+
 **A time-travel map.** Type a New York address and slide back through two centuries: strata finds every georeferenced
 historical map that covers the spot, lays the best one over today's city, and tells you where it came from, under what
 license, and how far off its alignment is, in metres.

@@ -50,3 +50,22 @@ def test_existed_in():
     assert existed_in(1900, None, 2020)
     assert not existed_in(1900, 1950, 1960)
     assert not existed_in(None, None, 1920)
+
+
+def test_assets_are_compressed_and_cached(tmp_path):
+    from fastapi.testclient import TestClient
+    from fastapi.staticfiles import StaticFiles
+    from strata import api
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "app-abc123.js").write_text("console.log('strata');" * 200)
+    from starlette.routing import Mount
+
+    mount = Mount("/assets", StaticFiles(directory=tmp_path / "assets"))
+    api.app.router.routes.insert(0, mount)  # ahead of the built site's catch-all "/" mount, if web/dist exists
+    try:
+        r = TestClient(api.app).get("/assets/app-abc123.js", headers={"Accept-Encoding": "gzip"})
+    finally:
+        api.app.router.routes.remove(mount)
+    assert r.status_code == 200 and r.headers["content-encoding"] == "gzip"
+    assert "immutable" in r.headers["cache-control"]

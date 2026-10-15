@@ -120,3 +120,10 @@ def test_allmaps_dates_and_rights_from_iiif_manifests():
     row, out = am.to_row(feat, 1811, "no-known-restrictions", "https://www.loc.gov/item/2005625335/", "Commissioners' plan")
     ingest.check_map(row)
     assert (row["id"], row["source"], row["method"]) == ("allmaps:8d36b34061eda327", "tile.loc.gov", "tps") and len(out) == 6
+
+
+def test_same_image_accepts_rescales_and_recrops_but_not_a_rotated_scan():
+    assert ingest.same_image(7230, 5428, 6860, 4993)      # NYPL re-derivative: rescaled, lightly re-cropped
+    assert ingest.same_image(6366, 3468, 3183, 1734)      # exact half size
+    assert not ingest.same_image(6366, 3468, 2754, 5950)  # rotated / replaced scan
+    assert not ingest.same_image(5008, 5723, 5243, 4203)  # orientation flipped

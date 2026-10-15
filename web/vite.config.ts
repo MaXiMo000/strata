@@ -9,5 +9,5 @@ export default defineConfig({
     proxy: { "/api": `http://127.0.0.1:${process.env.STRATA_API ?? 8012}` },
   },
   worker: { format: "es" },
-  build: { target: "es2022", chunkSizeWarningLimit: 1600 },
+  build: { target: "es2022", sourcemap: true, chunkSizeWarningLimit: 1600 },
 });

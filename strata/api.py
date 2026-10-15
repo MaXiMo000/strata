@@ -3,7 +3,8 @@ import os
 from pathlib import Path
 
 import psycopg
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 
@@ -12,6 +13,16 @@ from .whatwashere import what_was_here
 DB = os.environ.get("DATABASE_URL", "postgresql://strata:strata@localhost:5432/strata")
 WEB = Path(__file__).resolve().parent.parent / "web" / "dist"  # npm run build (in web/)
 app = FastAPI(title="strata")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.middleware("http")
+async def cache_assets(request: Request, call_next):
+    """Built assets have content hashes in their names, so they never change: cache them for a year."""
+    response = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
 
 POINT = "ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)"
 

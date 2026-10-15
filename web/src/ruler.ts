@@ -26,12 +26,23 @@ export class Ruler {
     this.years = [...years].sort((a, b) => a - b);
     this.el.tabIndex = interactive && years.length ? 0 : -1;
     this.el.classList.toggle("passive", !interactive);
-    this.el.setAttribute("aria-disabled", String(!interactive || !years.length));
     const first = this.years[0] ?? 1800, last = this.years.at(-1) ?? 2020;
+    // Passive, it's a picture of coverage, not a control: an image with a description, not a slider without a value.
+    if (interactive) {
+      this.el.setAttribute("role", "slider");
+      this.el.setAttribute("aria-label", "Year");
+    } else {
+      this.el.setAttribute("role", "img");
+      this.el.setAttribute("aria-label", `Map coverage: ${years.length} years with maps, ${first} to ${last}`);
+      for (const a of ["aria-valuemin", "aria-valuemax", "aria-valuenow", "aria-valuetext", "aria-orientation"]) this.el.removeAttribute(a);
+    }
     this.lo = Math.floor(first / 10) * 10 - 10;
     this.hi = Math.min(2030, Math.ceil((last + 1) / 10) * 10 + 10);
-    this.el.setAttribute("aria-valuemin", String(first));
-    this.el.setAttribute("aria-valuemax", String(last));
+    if (interactive) {
+      this.el.setAttribute("aria-orientation", "horizontal");
+      this.el.setAttribute("aria-valuemin", String(first));
+      this.el.setAttribute("aria-valuemax", String(last));
+    }
     this.draw();
     this.set(year);
   }
@@ -39,7 +50,7 @@ export class Ruler {
   set(year: number | null) {
     this.notches.get(this.year ?? NaN)?.classList.remove("now");
     this.year = year;
-    if (year === null) return this.el.removeAttribute("aria-valuenow");
+    if (year === null || this.el.getAttribute("role") !== "slider") return this.el.removeAttribute("aria-valuenow");
     this.notches.get(year)?.classList.add("now");
     this.el.style.setProperty("--now", `${this.x(year)}%`);
     this.el.setAttribute("aria-valuenow", String(year));

@@ -12,7 +12,11 @@
 <body class="arrival">
   <a class="skip" href="#q">Skip to the address</a>
 
-  <div id="map" role="region" aria-label="Map. Drag to pan, scroll or pinch to zoom."></div>
+  <div class="scene">
+    <div class="still-map" aria-hidden="true"></div>
+    <div id="map" role="region" aria-label="Map. Drag to pan, scroll or pinch to zoom."></div>
+  </div>
+  <p class="credit-static">OpenFreeMap · © OpenStreetMap</p>
 
   <header class="hud">
     <a class="brand" href="/" aria-label="strata: start again">
@@ -44,8 +48,6 @@
         <button type="button" data-q="200 Vesey Street, New York">200 Vesey St</button>
       </nav>
     </section>
-
-
 
     <aside class="card panel" id="card" aria-label="Map on screen" hidden></aside>
 

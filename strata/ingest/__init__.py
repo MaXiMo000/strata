@@ -4,6 +4,7 @@ Each source is a module `strata.ingest.<source>` with `run(conn, bbox)`; run it 
 """
 import hashlib
 import json
+import math
 import os
 import time
 from pathlib import Path
@@ -59,6 +60,22 @@ def get(url: str, params: dict | None = None, *, cache: bool = True, min_interva
 
 def get_json(url: str, params: dict | None = None, **kw):
     return json.loads(get(url, params, **kw))
+
+
+def same_image(ann_w: float, ann_h: float, w: float, h: float) -> bool:
+    """Is the image served today the one the control points were placed on? Institutions re-derive scans (NYPL did):
+    a rescale or a light re-crop keeps the shape and Allmaps absorbs it; a rotated or replaced image changes the aspect
+    ratio, and the control points no longer land on it."""
+    return abs(math.log((ann_w / ann_h) / (w / h))) < 0.2
+
+
+def image_matches(resource: dict) -> bool:
+    """Compare an annotation's resource size with the IIIF image's current info.json (one cached request)."""
+    try:
+        info = get_json(resource["id"].rstrip("/") + "/info.json")
+        return same_image(resource["width"], resource["height"], info["width"], info["height"])
+    except Exception:
+        return False  # an image we can't read is one the browser can't draw either
 
 
 def usable(rmse_m: float | None) -> bool:

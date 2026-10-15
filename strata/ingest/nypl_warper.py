@@ -9,7 +9,7 @@ import hashlib
 import html
 import json
 
-from . import MAX_RMSE_M, get, get_json, upsert_gcps, upsert_map, usable
+from . import MAX_RMSE_M, get, get_json, image_matches, upsert_gcps, upsert_map, usable
 from ..georef import loo_rmse_m
 
 DATASET = "http://s3.amazonaws.com/spacetime-nypl-org/datasets/mapwarper/mapwarper.objects.ndjson"
@@ -94,7 +94,7 @@ def run(conn, bbox) -> int:
             if not f.get("geometry"):
                 continue
             row, gcps = to_row(rec, f)
-            if not usable(row["rmse_m"]):
+            if not usable(row["rmse_m"]) or not image_matches(f["properties"]["resource"]):
                 continue
             if upsert_map(conn, row):
                 upsert_gcps(conn, row["id"], gcps)

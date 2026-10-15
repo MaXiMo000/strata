@@ -23,12 +23,22 @@ kbd { font: 500 var(--t-label) / 1 var(--mono); border: 1px solid var(--hair); b
 .label { margin: 0; font: 500 var(--t-label) / 1.4 var(--mono); letter-spacing: var(--track); text-transform: uppercase; color: var(--slate); }
 
 /* ------------------------------------------------------------------ the scene */
-#map, .today { position: fixed; inset: 0; z-index: var(--z-map); }
+.scene { position: fixed; inset: 0; z-index: var(--z-map); }
+/* .scene > raises specificity over MapLibre's own .maplibregl-map { position: relative }, which loads later. */
+.scene > #map, .scene > .today { position: absolute; inset: 0; }
+/* Until MapLibre loads (first intent), the scene is a still of the same view at natural pixel size, centred like the
+   map, so the crossfade to the live map doesn't jump. */
+.still-map { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: var(--night) url("/arrival.webp") 50% 50% / auto no-repeat;
+  transition: opacity 600ms var(--ease), visibility 0s 600ms; }
+.live .still-map { opacity: 0; visibility: hidden; }
+.credit-static { position: fixed; z-index: var(--z-hud); right: var(--gutter-r); bottom: calc(var(--ruler-h) + 8px + env(safe-area-inset-bottom));
+  margin: 0; padding: 2px 6px; background: var(--panel); font: 400 9px var(--mono); letter-spacing: .06em; color: var(--slate); }
+.live .credit-static { display: none; }
 .today { pointer-events: none; clip-path: inset(0 0 0 var(--x, 50%)); }
 body:not(.swiping) .today { display: none; }
 /* Arrival drift: 30 s each way, compositor only. Scaled 8% so the slow translate never shows an edge. */
 @media (prefers-reduced-motion: no-preference) {
-  .arrival:not(.still) .maplibregl-canvas { animation: drift 30s var(--ease) infinite alternate; transform-origin: 50% 50%; }
+  .arrival:not(.still) .scene { animation: drift 30s var(--ease) infinite alternate; transform-origin: 50% 50%; }
 }
 @keyframes drift { from { transform: scale(1.08) translate(1.5%, -1%); } to { transform: scale(1.08) translate(-1.5%, 1%); } }
 .maplibregl-ctrl-attrib { background: var(--panel) !important; padding: 2px 6px !important; font: 400 9px var(--mono); letter-spacing: .06em; }
@@ -105,8 +115,9 @@ h1 { margin: 0; max-width: 9ch; font: 300 var(--t-question) / .92 var(--serif); 
 .no-roll .reel { transition: none; }
 /* The numeral stands on a plate of --night: flush to the screen edge and the ruler, solid under the glyphs (AA over a
    white paper map), feathered only on its two open sides. Straight edges, so it reads as part of the instrument. */
-.numeral::before { content: ""; position: absolute; z-index: -1; top: -.16em; right: -.7em; bottom: calc(-1 * (var(--ruler-h) + 30px));
-  left: calc(-1 * var(--gutter)); background: var(--scrim);
+.numeral::before { content: ""; position: absolute; z-index: -1; top: -.16em; bottom: calc(-1 * (var(--ruler-h) + 30px));
+  left: calc(-1 * var(--gutter)); width: max(calc(100% + .7em + var(--gutter)), 24rem); /* at least as wide as the caption */
+  background: var(--scrim);
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - .55em), transparent), linear-gradient(to bottom, transparent, #000 .2em);
   -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, #000 calc(100% - .55em), transparent), linear-gradient(to bottom, transparent, #000 .2em);
   mask-composite: intersect; }
@@ -185,6 +196,8 @@ h1 { margin: 0; max-width: 9ch; font: 300 var(--t-question) / .92 var(--serif); 
 
 /* ------------------------------------------------------------------ phones: the year moves up, the ruler stays at the thumb */
 @media (max-width: 720px) {
+  /* On a phone, labels go to 12px: legibility in the hand matters more than the tracked-caps texture. */
+  :root { --t-label: 12px; --track: .14em; }
   body { --ruler-h: 64px; }
   .hud { gap: var(--s3); padding-top: calc(env(safe-area-inset-top) + var(--s2)); }
   .catalog, .key-hint span { display: none; }

@@ -9,7 +9,7 @@ import re
 
 import httpx
 
-from . import get_json, upsert_gcps, upsert_map, usable
+from . import get_json, image_matches, upsert_gcps, upsert_map, usable
 from .nypl_warper import method_for
 from ..georef import loo_rmse_m
 
@@ -98,12 +98,12 @@ def from_loc(manifest: str) -> tuple[int | None, str, str]:
     return year_in(_text(it.get("date"))), advisory or "no-known-restrictions", item_url
 
 
-def from_rumsey(resource_id: str) -> tuple[int | None, int | None]:
-    """(map date, publication date) from LUNA; the IIIF manifest has no metadata."""
+def from_rumsey(resource_id: str) -> tuple[int | None, int | None, str]:
+    """(map date, publication date, title) from LUNA; the IIIF manifest has no metadata."""
     mid = resource_id.rsplit("/", 1)[-1]
     d = get_json("https://www.davidrumsey.com/luna/servlet/as/fetchMediaSearch", {"mid": mid, "fullData": "true"})[0]
     fields = {json.loads(e["field"])["fieldName"]: e.get("value") for e in json.loads(d["fieldValues"])}
-    return year_in(fields.get("date")), year_in(fields.get("pub_date"))
+    return year_in(fields.get("date")), year_in(fields.get("pub_date")), (d.get("displayName") or "").strip()
 
 
 def to_row(feature: dict, year: int, license: str, source_url: str | None, title: str, year_published=None):
@@ -136,8 +136,8 @@ def describe(feature: dict) -> tuple | None:
         year, lic, url = from_loc(manifest)
         return (year, lic, url, label, None) if year else None
     if h == "www.davidrumsey.com":
-        year, pub = from_rumsey(p["resource"]["id"])
-        title = label or "David Rumsey Map Collection " + p["resource"]["id"].rsplit("/", 1)[-1]
+        year, pub, name = from_rumsey(p["resource"]["id"])
+        title = label or name or "Untitled map (David Rumsey Map Collection)"
         url = "https://www.davidrumsey.com/luna/servlet/detail/" + p["resource"]["id"].rsplit("/", 1)[-1]
         return (year or pub, "CC-BY-NC-SA-3.0", url, title, pub) if (year or pub) else None
     if not manifest:
@@ -167,11 +167,11 @@ def run(conn, bbox) -> int:
             continue
         year, lic, url, title, pub = info
         row, gcps = to_row(f, year, lic, url, title or "Untitled map", pub)
-        if not usable(row["rmse_m"]):
+        if not usable(row["rmse_m"]) or not image_matches(f["properties"]["resource"]):
             skipped += 1
             continue
         if upsert_map(conn, row):
             upsert_gcps(conn, row["id"], gcps)
             n += 1
-    print(f"allmaps: {skipped} skipped (undated, no geometry, or > MAX_RMSE_M)")
+    print(f"allmaps: {skipped} skipped (undated, no geometry, > MAX_RMSE_M, or the image has changed)")
     return n
