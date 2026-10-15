@@ -36,7 +36,7 @@ point in this year" in one query.
 
 ## Status
 
-New York City is the pilot. The catalog holds **3,369 maps covering 123 distinct years from 1609 to 2000**: 2,902 from
+New York City is the pilot. The catalog holds **3,510 maps covering 123 distinct years from 1609 to 2000**: 3,043 from
 NYPL, 293 USGS topographic maps, and 174 from the Library of Congress, the David Rumsey collection, the Leventhal Map
 Center and others (an NYPL import is still adding sheets).
 
