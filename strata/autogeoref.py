@@ -13,7 +13,9 @@ import argparse
 import base64
 import json
 import math
+import os
 import random
+from pathlib import Path
 
 import numpy as np
 
@@ -151,7 +153,17 @@ def evaluate(M: np.ndarray, truth: list[tuple]) -> dict:
 
 
 # ---------------------------------------------------------------- CLI: one already-georeferenced map, measured
+def load_dotenv(path: Path = Path(__file__).resolve().parent.parent / ".env") -> None:
+    """KEY=VALUE lines from the project's .env (git-ignored) fill in variables the environment doesn't set."""
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and not line.lstrip().startswith("#"):
+                os.environ.setdefault(key.strip(), value.split(" #")[0].strip().strip('"'))
+
+
 def main(argv=None) -> None:
+    load_dotenv()
     ap = argparse.ArgumentParser(prog="python -m strata.autogeoref")
     ap.add_argument("map_id", help="a catalogued map with control points, e.g. nypl:85e54acdc421afe4")
     ap.add_argument("--tiles", type=int, default=2, help="n x n tiles per scan (cost scales with n squared)")
