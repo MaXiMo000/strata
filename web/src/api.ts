@@ -10,6 +10,7 @@ export interface Layer {
   method: string | null;
   tile_url: string;
   georef_annotation: string | null;
+  bounds: [number, number, number, number]; // footprint bbox, lon/lat
 }
 
 export interface Place {

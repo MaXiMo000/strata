@@ -83,7 +83,11 @@ export class History {
       }).catch((e) => console.error("warped map", layer.id, e));
       return h;
     }
-    this.map.addSource(id, { type: "raster", tiles: [layer.tile_url], tileSize: 256, attribution: "" });
+    // Only ask for tiles over the map itself: outside its extent the tile server answers 404. Pulled in ~40 m, the
+    // difference between a USGS neatline stored in NAD27 and the WGS84 image it crops.
+    const [w, s, e, n] = layer.bounds, pad = 0.0004;
+    this.map.addSource(id, { type: "raster", tiles: [layer.tile_url], tileSize: 256, attribution: "",
+      bounds: [w + pad, s + pad, e - pad, n - pad] });
     this.map.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-opacity-transition": { duration: 0 } } },
       this.beforeId);
     return {

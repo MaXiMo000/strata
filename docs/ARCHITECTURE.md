@@ -91,7 +91,7 @@ the browser (loaded on demand). FastAPI serves the built `web/dist`; in developm
 | Method | Path | Result |
 |---|---|---|
 | GET | `/api/timeline?lat&lon` | `[1857, 1891, 1916, 1955, …]` |
-| GET | `/api/layers?lat&lon&year&limit=5` | `[{id,title,source,source_url,license,year,scale_denom,rmse_m,method,tile_url,georef_annotation}]` |
+| GET | `/api/layers?lat&lon&year&limit=5` | `[{id,title,source,source_url,license,year,scale_denom,rmse_m,method,tile_url,georef_annotation,bounds}]` |
 | GET | `/api/whatwashere?lat&lon&year` | `[{wikidata,name,start,end,distance_m}]` |
 
 Inputs are validated (lat/lon ranges, year 1000–2100, limit ≤ 20). All SQL is parameterised.
