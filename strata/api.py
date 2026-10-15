@@ -17,7 +17,7 @@ POINT = "ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)"
 
 
 def q(sql: str, **params) -> list[dict]:
-    # ponytail: connection per request; switch to psycopg_pool.ConnectionPool when traffic is real
+    # One connection per request; move to psycopg_pool.ConnectionPool under real traffic.
     with psycopg.connect(DB, row_factory=dict_row) as conn:
         return conn.execute(sql, params).fetchall()
 

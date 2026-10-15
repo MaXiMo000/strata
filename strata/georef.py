@@ -50,7 +50,7 @@ def loo_rmse_m(gcps) -> float:
 
 
 def worst_gcp(gcps) -> int:
-    """Index of the GCP with the largest residual: the first one to show the user as 'probably misplaced'."""
+    """Index of the GCP with the largest residual: the first one to flag as 'probably misplaced'."""
     r = residuals_m(gcps, fit_affine(gcps))
     return max(range(len(r)), key=r.__getitem__)
 

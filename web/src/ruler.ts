@@ -1,5 +1,5 @@
 // The ruler: a surveyor's scale with notches only where history exists, so the density of notches *is* the coverage.
-// Drag, click, or use the keys; it always lands on a year that has a map. An ARIA slider (docs/DESIGN.md "Keyboard").
+// Drag, click, or use the keys; it always lands on a year that has a map. An ARIA slider (README, Design).
 export type Describe = (year: number) => string;
 
 export class Ruler {

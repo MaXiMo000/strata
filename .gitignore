@@ -6,3 +6,8 @@ __pycache__/
 data/
 node_modules/
 dist/
+.dev/
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+lighthouse*.json

@@ -1,4 +1,4 @@
-/* strata tokens. The rules are docs/DESIGN.md; components use these names only, never raw colours.
+/* strata tokens. Rules: README, Design; components use these names only, never raw colours.
    Contrast ratios are measured (WCAG 2.x): first against --night, then against the worst case a panel can sit on,
    --panel over white paper (#252728). Nothing that carries text is under 4.5:1 in either. */
 :root {

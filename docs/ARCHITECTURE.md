@@ -56,12 +56,12 @@ wrong in practice (e.g. a 1911 1:600 Sanborn should beat a 1916 1:24k topo for y
 |---|---|---|
 | IIIF images + GCPs (LOC, NYPL, Rumsey via Allmaps) | **the browser** warps them with `@allmaps/maplibre` (`WarpedMapLayer`), fetching IIIF tiles straight from the institution. `tile_url` still holds the `allmaps.xyz` template for external tools | none |
 | GeoTIFFs (USGS) | TiTiler reads USGS's own COGs on S3 in place; `vrt://…?projwin=` in the tile URL crops the collar | none |
-| Our own warps (Phase 2+) | `gdalwarp` → COG in `data/cogs/` or R2 → TiTiler | ours |
+| Our own warps (planned) | `gdalwarp` → COG in `data/cogs/` or R2 → TiTiler | ours |
 | Pre-tiled (NLS) | the source's XYZ URL | none |
 
 Why not the Allmaps tile server for everything: it runs on Cloudflare, and NYPL's and LOC's IIIF servers block
-Cloudflare's IP ranges, so it returns blank 200 tiles for them (checked 2026-10-02; allmaps/allmaps#638). It works for
-Rumsey. In the browser the requests come from the user, and both institutions send `Access-Control-Allow-Origin: *`.
+Cloudflare's IP ranges, so it returns blank 200 tiles for them (allmaps/allmaps#638). It works for
+Rumsey. In the browser the requests come from the viewer, and both institutions send `Access-Control-Allow-Origin: *`.
 The frontend uses `georef_annotation` when present and `tile_url` otherwise.
 
 The COG recipe is in `strata/georef.gdal_commands` (EPSG:3857, WEBP compression, alpha band).
@@ -69,17 +69,22 @@ In production, put a CDN (Cloudflare) in front of TiTiler and cache tiles aggres
 
 ## Frontend
 
-Today it's a single scaffold page (`web/index.html`). Phase 1e rebuilds it as **Vite + TypeScript** (not React: MapLibre does the heavy
-lifting) to the spec in `docs/DESIGN.md`: a custom dark vector base style, the ruler slider, crossfading layers, swipe compare,
-and the core-sample drawer.
+`web/` is Vite + TypeScript with no UI framework: MapLibre GL draws the map and `@allmaps/maplibre` warps IIIF maps in
+the browser (loaded on demand). FastAPI serves the built `web/dist`; in development Vite proxies `/api`.
+
+- `basemap.ts` builds the dark vector style from the CSS tokens (OpenFreeMap tiles, OpenMapTiles schema).
+- `layers.ts` keeps a small pool of historical layers: the shown year plus its neighbours preloading at opacity 0, so a
+  change of year is a 400 ms crossfade.
+- `ruler.ts` is the year slider (an ARIA slider with notches only at years that have maps); `numeral.ts` is the year.
+- `main.ts` wires state, the URL (`?q=&lat=&lon=&z=&year=&swipe=`), keys, swipe compare and the PNG poster.
 
 ## "What stood here"
 
 - **Wikidata** (live now): items within 150 m with inception (P571) ≤ year ≤ dissolved (P576). Items with no
-  inception date are excluded because they can't be placed in time. It's noisy (radio stations, organisations), so Phase 3
+  inception date are excluded because they can't be placed in time. It's noisy (radio stations, organisations), so a later step
   filters by P31 class.
-- **OpenHistoricalMap** (Phase 3): vector features with `start_date`/`end_date`.
-- **Sanborn** (Phase 2): the map itself *is* the answer at building level. Phase 5+ could extract footprints.
+- **OpenHistoricalMap** (planned): vector features with `start_date`/`end_date`.
+- **Sanborn** (planned): the map itself *is* the answer at building level; footprints could be extracted later.
 
 ## API
 

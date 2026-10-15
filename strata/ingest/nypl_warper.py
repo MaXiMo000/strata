@@ -15,7 +15,7 @@ from ..georef import loo_rmse_m
 DATASET = "http://s3.amazonaws.com/spacetime-nypl-org/datasets/mapwarper/mapwarper.objects.ndjson"
 IIIF = "https://iiif.nypl.org/iiif/2/{}"
 ALLMAPS_IMAGE_MAPS = "https://api.allmaps.org/images/{}/maps.geojson"
-TILES = "https://allmaps.xyz/maps/{}/{{z}}/{{x}}/{{y}}.png"  # CORS: Access-Control-Allow-Origin: * (checked 2026-10-02)
+TILES = "https://allmaps.xyz/maps/{}/{{z}}/{{x}}/{{y}}.png"  # sends Access-Control-Allow-Origin: *
 
 
 def allmaps_id(url: str) -> str:
@@ -24,7 +24,8 @@ def allmaps_id(url: str) -> str:
 
 
 def license_for(year: int) -> str:
-    # ponytail: rights by year rule; per-item NYPL rights need an API token (api.repo.nypl.org). Add it before monetising.
+    # Rights by publication year. Per-item NYPL rights need an API token (api.repo.nypl.org); check them before any
+    # commercial use.
     return "public-domain" if year <= 1930 else "nypl-rights-unverified"
 
 

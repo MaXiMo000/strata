@@ -1,5 +1,5 @@
 // The modern city, almost invisible: land is the ground, roads are hairlines, labels a quiet vellum. The historical maps
-// are the only colour on screen (docs/DESIGN.md "Base map"). Built from the CSS tokens so there is one source of truth.
+// are the only colour on screen (README, Design). Built from the CSS tokens so there is one source of truth.
 // Tiles: OpenFreeMap (OpenMapTiles schema, OSM data, no key, production use allowed). Attribution is required.
 import type { StyleSpecification } from "maplibre-gl";
 

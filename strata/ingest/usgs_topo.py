@@ -33,7 +33,7 @@ def nmas_m(scale_denom: int) -> float:
 def tile_url(tif: str, b: dict) -> str:
     """TiTiler XYZ template for the GeoTIFF cropped to the neatline (b = TNM boundingBox, NAD27 degrees)."""
     src = f"vrt:///vsicurl/{tif}?projwin={b['minX']},{b['maxY']},{b['maxX']},{b['minY']}&projwin_srs=EPSG:4267"
-    # ponytail: projwin crops to the neatline's envelope in the map's own projection. On Transverse Mercator sheets the
+    # projwin crops to the neatline's envelope in the map's own projection. On Transverse Mercator sheets the
     # rotated neatline leaves a thin collar wedge at the edges; a pixel cutline VRT would remove it.
     return f"{TITILER}/cog/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png?url={quote(src, safe='')}"
 
@@ -47,7 +47,7 @@ def to_row(item: dict, metadata_xml: str) -> dict | None:
     survey, published = years(metadata_xml)
     published = published or int(item["publicationDate"][:4])
     b = item["boundingBox"]
-    # ponytail: footprint is the neatline in NAD27 degrees stored as WGS84 (~10-30 m shift in NYC); fine for coverage tests
+    # The footprint is the neatline in NAD27 degrees stored as WGS84 (a 10-30 m shift in NYC): fine for coverage tests.
     ring = [[b["minX"], b["minY"]], [b["maxX"], b["minY"]], [b["maxX"], b["maxY"]], [b["minX"], b["maxY"]], [b["minX"], b["minY"]]]
     return {
         "id": f"usgs:{item['sourceId']}",

@@ -1,4 +1,4 @@
-/* strata UI. Tokens and their rules: src/tokens.css + docs/DESIGN.md. A thin HUD over a full-bleed map; the map owns
+/* strata UI. Tokens and their rules: src/tokens.css. A thin HUD over a full-bleed map; the map owns
    every gesture and the page never scrolls. Text that sits over map imagery always has a --night ground under it. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }

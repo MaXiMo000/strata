@@ -19,7 +19,7 @@ NYC_BBOX = (-74.26, 40.49, -73.70, 40.92)  # minlon, minlat, maxlon, maxlat
 # cover NYC score 10 km+). Hand-drawn city plans reach 50-200 m; atlases 10-30 m. Maps with < 4 GCPs have no error at all.
 MAX_RMSE_M = 100.0
 # The pilot area: NYC_BBOX minus New Jersey, cut along the Hudson, Kill van Kull and Arthur Kill. The bbox alone pulls in
-# Newark atlases and NJ quads; the rule is NYC only until Phase 1 passes. Coarse on purpose: it only decides "is this
+# Newark atlases and NJ quads; the catalog is NYC only for now. Coarse on purpose: it only decides "is this
 # map about NYC at all", the footprint does the real work.
 PILOT_WKT = ("POLYGON((-73.93 40.92,-73.70 40.92,-73.70 40.49,-74.26 40.49,-74.21 40.56,-74.19 40.64,-74.09 40.645,"
              "-74.06 40.66,-74.02 40.71,-74.00 40.77,-73.93 40.92))")

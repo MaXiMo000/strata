@@ -43,7 +43,7 @@ Typical numbers:
 | 1890s city atlas plate | 10–30 m |
 | 1850 bird's-eye / hand-drawn city plan, TPS | 50–200 m |
 
-## 4. Automatic georeferencing (Phase 4 research)
+## 4. Automatic georeferencing (research)
 
 Classic image matching (SIFT/ORB/LoFTR) **fails** between a 1900 engraving and today's map tiles: the styles have
 nothing in common. What works is matching **semantics**, not pixels:
@@ -60,13 +60,13 @@ Pitfalls: renamed streets (look up historical names via OpenHistoricalMap / Wiki
 ("Brodway"), and duplicate street names across boroughs (restrict the bbox).
 
 ### 4b. Roads → fine GCPs
-1. Extract the road network from the scan (a segmentation model; train a U-Net on Sanborn sheets georeferenced in Phase 2).
+1. Extract the road network from the scan (a segmentation model; train a U-Net on hand-georeferenced Sanborn sheets).
 2. Skeletonise, then find the intersections (nodes of degree ≥ 3).
 3. Project them with the 4a affine, then match each to the nearest OSM intersection within 40 m. RANSAC again.
 4. Refit with the enlarged GCP set (poly2 or TPS) and report the LOO RMSE.
 
 ### 4c. Evaluation
-Use the hand-georeferenced Sanborn sheets (Phase 2) as ground truth. Report the median and 90th-percentile LOO RMSE,
+Use hand-georeferenced Sanborn sheets as ground truth. Report the median and 90th-percentile LOO RMSE,
 plus the % of sheets auto-accepted. A result is publishable when > 70% of sheets auto-georeference to < 15 m.
 
 ### 4d. Human in the loop
