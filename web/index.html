@@ -34,6 +34,9 @@
       <b>Strata</b>
     </a>
     <p class="catalog" id="catalog"></p>
+    <button class="key-hint core-open" id="core-open" type="button" aria-controls="core" aria-expanded="false">
+      <kbd>I</kbd><span>What stood here</span>
+    </button>
     <button class="key-hint" id="help-open" type="button" aria-haspopup="dialog" aria-controls="help">
       <kbd>?</kbd><span>Keys</span>
     </button>
@@ -58,6 +61,7 @@
     </section>
 
     <aside class="card panel" id="card" aria-label="Map on screen" hidden></aside>
+    <aside class="core panel" id="core" aria-labelledby="core-title" hidden></aside>
 
     <div class="numeral" id="numeral"></div>
     <p class="caption" id="caption"></p>
@@ -72,6 +76,7 @@
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next year with a map</dd>
         <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>About a decade back / on</dd>
         <dt><kbd>C</kbd></dt><dd>Swipe between then and today</dd>
+        <dt><kbd>I</kbd></dt><dd>What stood here: buildings and their lifespans</dd>
         <dt><kbd>B</kbd></dt><dd>Hide today's street names</dd>
         <dt><kbd>O</kbd> <kbd>Shift</kbd>+<kbd>O</kbd></dt><dd>Old map more / less opaque</dd>
         <dt><kbd>P</kbd></dt><dd>Save this view as a poster (PNG)</dd>

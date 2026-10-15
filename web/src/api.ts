@@ -31,6 +31,9 @@ export const timeline = (lat: number, lon: number, signal?: AbortSignal) =>
 
 export const atlasSheets = (id: string) => json<string[]>(`/api/atlas?id=${encodeURIComponent(id)}`);
 
+export const history = (lat: number, lon: number) =>
+  json<{ name: string; start: number; end: number | null; source: "wikidata" | "ohm"; url: string }[]>(`/api/history?lat=${lat}&lon=${lon}`);
+
 export const catalog = () => json<{ maps: number; years: number[] }>("/api/catalog");
 
 export const layers = (lat: number, lon: number, year: number, signal?: AbortSignal) =>

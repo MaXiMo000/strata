@@ -31,6 +31,8 @@ point in this year" in one query.
 - **The interface:** a near-invisible dark base map so the old maps are the only colour, a year numeral, a ruler with
   notches only at years that have maps, crossfading layers with neighbouring years preloaded, swipe compare between then
   and today, shareable URLs and a PNG poster export. Keyboard-complete; `?` lists the keys.
+- **What stood here** (`I`): nearby buildings and places from Wikidata and OpenHistoricalMap drawn as lifespans in a
+  column of time, with the selected year marked; pick one to jump to its maps.
 
 ## Run it
 
@@ -110,7 +112,9 @@ year, scale, error, method, license, and how to draw it (a Georeference Annotati
 |---|---|
 | `GET /api/timeline?lat&lon` | every year with a map covering the point |
 | `GET /api/layers?lat&lon&year&limit` | the best maps for that point and year, with license, error and bounds |
-| `GET /api/whatwashere?lat&lon&year` | Wikidata places nearby that existed that year |
+| `GET /api/history?lat&lon` | dated buildings and places within 150 m, with their lifespans (cached 30 days) |
+| `GET /api/whatwashere?lat&lon&year` | the same, limited to what existed that year |
+| `GET /api/atlas?id` | every georeferenced sheet of one atlas volume |
 | `GET /api/catalog` | map count and years, for the start screen |
 
 **Error.** For maps with control points, strata refits the alignment without each point in turn and measures how far

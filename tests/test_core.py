@@ -69,3 +69,17 @@ def test_assets_are_compressed_and_cached(tmp_path):
         api.app.router.routes.remove(mount)
     assert r.status_code == 200 and r.headers["content-encoding"] == "gzip"
     assert "immutable" in r.headers["cache-control"]
+
+
+def test_merge_keeps_one_dated_entry_per_place_oldest_first():
+    from strata.whatwashere import _year, merge
+
+    wd = [{"name": "Empire State Building", "start": 1931, "end": None, "source": "wikidata"},
+          {"name": "Waldorf–Astoria", "start": 1893, "end": 1929, "source": "wikidata"}]
+    ohm = [{"name": "Empire State  building", "start": 1931, "end": None, "source": "ohm"},
+           {"name": "Washing Establishment", "start": 1847, "end": 1904, "source": "ohm"},
+           {"name": "Undated shed", "start": None, "end": None, "source": "ohm"}]
+    out = merge(wd, ohm)
+    assert [p["name"] for p in out] == ["Washing Establishment", "Waldorf–Astoria", "Empire State Building"]
+    assert out[-1]["source"] == "wikidata"  # Wikidata first, so its entry (and link) wins the duplicate
+    assert (_year("1917-06-03"), _year("~1850"), _year("-0500-01-01T00:00:00Z"), _year(None)) == (1917, 1850, -500, None)

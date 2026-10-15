@@ -8,6 +8,7 @@ import "./style.css";
 
 import * as api from "./api";
 import type { Layer, Place } from "./api";
+import { CoreSample, type Lifespan } from "./core";
 import { Numeral } from "./numeral";
 import { Ruler } from "./ruler";
 import type { Scene } from "./scene";
@@ -44,6 +45,25 @@ for (const ev of ["pointerdown", "pointermove", "focusin", "keydown", "touchstar
 // The drift (style.css) is compositor-only; it stops for good at the first touch.
 const stopDrift = () => document.body.classList.add("still");
 for (const ev of ["pointerdown", "wheel", "keydown"] as const) addEventListener(ev, stopDrift, { once: true, capture: true });
+
+// ---------------------------------------------------------------- core sample (I)
+const core = new CoreSample($("core"), (span) => {
+  // The first year with a map inside the place's lifespan, else the one nearest its start.
+  const inside = state.years.find((y) => y >= span.start && y <= (span.end ?? 9999));
+  const y = inside ?? state.years.reduce((b, c) => (Math.abs(c - span.start) < Math.abs(b - span.start) ? c : b), state.years[0]!);
+  if (y !== undefined && y !== state.year) { ruler.set(y); selectYear(y); }
+  announce(`${span.name}: showing ${y}`);
+});
+const coreOpen = () => $("core").hidden === false;
+function setCore(open: boolean) {
+  const panel = $("core"), btn = $("core-open");
+  if (open === coreOpen()) return;
+  panel.hidden = !open;
+  document.body.classList.toggle("core-on", open);
+  btn.setAttribute("aria-expanded", String(open));
+  if (open) { core.setYear(state.year); $("core-title").focus(); } else btn.focus();
+}
+$("core-open").addEventListener("click", () => setCore(!coreOpen()));
 
 // ---------------------------------------------------------------- components
 const numeral = new Numeral($("numeral"));
@@ -100,6 +120,7 @@ const layersFor = (year: number) => {
 let pending = 0;
 function selectYear(year: number) {
   state.year = year;
+  core.setYear(year);
   numeral.set(year);
   ruler.set(year);
   writeUrl();
@@ -155,6 +176,7 @@ async function locate(q: string, opts: { lat?: number; lon?: number; year?: numb
   document.body.classList.replace("arrival", "located");
   sceneReady.then((s) => { s.fly([place!.lon, place!.lat], state.zoom, reduced()); s.setPin(place, null); });
 
+  api.history(place.lat, place.lon).then((spans) => core.set(spans as Lifespan[], place)).catch(() => core.set([], place));
   const years: number[] = await api.timeline(place.lat, place.lon).catch(() => []);
   state.years = years;
   status.textContent = "";
@@ -242,7 +264,7 @@ $("help").addEventListener("keydown", (e) => { // keep Tab inside the dialog
 // ---------------------------------------------------------------- keys
 document.addEventListener("keydown", (e) => {
   const typing = (e.target as HTMLElement).matches("input, textarea");
-  if (e.key === "Escape") { if (!$("help").hidden) setHelp(false); else if (swipe.on) setSwipe(false); else if (typing) (e.target as HTMLElement).blur(); return; }
+  if (e.key === "Escape") { if (!$("help").hidden) setHelp(false); else if (coreOpen()) setCore(false); else if (swipe.on) setSwipe(false); else if (typing) (e.target as HTMLElement).blur(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey || !$("help").hidden) return;
   const k = e.key.toLowerCase();
   if (e.key === "/") { e.preventDefault(); $("q").focus(); $<HTMLInputElement>("q").select(); }
@@ -260,6 +282,7 @@ document.addEventListener("keydown", (e) => {
     live.setOpacity(live.opacity + (e.shiftKey ? -0.1 : 0.1));
     announce(`Old map ${Math.round(live.opacity * 100)}% opaque`);
   } else if (k === "c") setSwipe(!swipe.on);
+  else if (k === "i") setCore(!coreOpen());
   else if (k === "p") poster();
 });
 

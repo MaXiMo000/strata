@@ -56,7 +56,8 @@ export class History {
     if (reduced()) return set(to);
     const t0 = performance.now();
     const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / FADE_MS);
+      // A frame's timestamp can precede t0 (it's the frame start), so clamp at 0 too or the easing undershoots.
+      const k = Math.min(1, Math.max(0, (t - t0) / FADE_MS));
       const e = 1 - Math.pow(1 - k, 3); // ease-out, matching cubic-bezier(.2,.7,.2,1) closely enough for opacity
       set(from + (to - from) * e);
       if (k < 1) this.fades.set(id, requestAnimationFrame(step));

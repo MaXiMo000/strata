@@ -31,3 +31,10 @@ CREATE TABLE gcps (
   origin  text NOT NULL DEFAULT 'imported'           -- imported | manual | auto-text | auto-roads
 );
 CREATE INDEX ON gcps (map_id);
+
+-- "What stood here" answers from Wikidata/OpenHistoricalMap, kept 30 days (key: rounded lat/lon).
+CREATE TABLE facts_cache (
+  key      text PRIMARY KEY,
+  body     jsonb NOT NULL,
+  fetched  timestamptz NOT NULL DEFAULT now()
+);

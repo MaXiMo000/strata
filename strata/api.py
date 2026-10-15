@@ -8,7 +8,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 
-from .whatwashere import what_was_here
+from psycopg.types.json import Jsonb
+
+from .whatwashere import existed_in, history
 
 DB = os.environ.get("DATABASE_URL", "postgresql://strata:strata@localhost:5432/strata")
 WEB = Path(__file__).resolve().parent.parent / "web" / "dist"  # npm run build (in web/)
@@ -76,9 +78,28 @@ def catalog():
     return {"maps": sum(r["n"] for r in rows), "years": [r["year"] for r in rows]}
 
 
+def cached_history(lat: float, lon: float) -> list[dict]:
+    """history() through facts_cache: keyed on lat/lon rounded to ~10 m, refreshed after 30 days."""
+    key = f"history:{lat:.4f}:{lon:.4f}"
+    rows = q("SELECT body FROM facts_cache WHERE key = %(k)s AND fetched > now() - interval '30 days'", k=key)
+    if rows:
+        return rows[0]["body"]
+    places = history(round(lat, 4), round(lon, 4))
+    with psycopg.connect(DB) as conn:
+        conn.execute("INSERT INTO facts_cache (key, body) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE "
+                     "SET body = EXCLUDED.body, fetched = now()", (key, Jsonb(places)))
+    return places
+
+
+@app.get("/api/history")
+def place_history(lat: float = Lat, lon: float = Lon):
+    """Dated buildings and places near the point with their lifespans (the core sample)."""
+    return cached_history(lat, lon)
+
+
 @app.get("/api/whatwashere")
 def whatwashere(lat: float = Lat, lon: float = Lon, year: int = Query(ge=1000, le=2100)):
-    return what_was_here(lat, lon, year)
+    return [p for p in cached_history(lat, lon) if existed_in(p["start"], p["end"], year)]
 
 
 if WEB.is_dir():  # after the API routes, so /api/* wins
