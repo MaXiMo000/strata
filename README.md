@@ -34,6 +34,23 @@ point in this year" in one query.
 - **What stood here** (`I`): nearby buildings and places from Wikidata and OpenHistoricalMap drawn as lifespans in a
   column of time, with the selected year marked; pick one to jump to its maps.
 
+## Status
+
+New York City is the pilot. The catalog holds **3,369 maps covering 123 distinct years from 1609 to 2000**: 2,902 from
+NYPL, 293 USGS topographic maps, and 174 from the Library of Congress, the David Rumsey collection, the Leventhal Map
+Center and others (an NYPL import is still adding sheets).
+
+- **Coverage:** 10 random Manhattan addresses (two seeded draws of 5) each show **35 to 67 years** of maps; every map
+  offered carries a license and an error figure, and the interface loads each address with no console errors.
+- **Lighthouse** (mobile profile, start page): Performance 93-99, Accessibility 100, Best Practices 100, SEO 100.
+- **Integrity:** maps whose source image has been replaced or rotated since it was georeferenced are dropped (182 of
+  the first 3,251 NYPL and Allmaps maps).
+
+![The 1916 map at 350 5th Avenue with the "what stood here" column: the Waldorf-Astoria lit, the Empire State Building still to come](docs/screenshots/core-1440.webp)
+
+Next: georeferencing whole Sanborn atlas volumes in Allmaps Editor (the ingester picks them up), then automatic
+georeferencing from street-name labels, and a second city.
+
 ## Run it
 
 Requirements: Python 3.11+, Node 20+, Docker.
