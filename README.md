@@ -46,6 +46,13 @@ python -m strata.ingest usgs_topo                 # then: nypl_warper, allmaps (
 uvicorn strata.api:app --port 8000                # http://localhost:8000
 ```
 
+Or everything in containers:
+
+```bash
+docker compose --profile app --profile tiles up -d --build          # app on http://localhost:8000
+docker compose run --rm app python -m strata.ingest usgs_topo       # then nypl_warper, allmaps
+```
+
 For UI development run `npm run dev` in `web/` (http://localhost:5180); it proxies `/api` to the API on port 8012, or to
 `STRATA_API`.
 
@@ -64,8 +71,8 @@ See `.env.example`.
 
 ## Deploy
 
-One small VPS runs FastAPI, PostGIS and TiTiler; put a CDN in front of TiTiler, since tiles never change. Build `web/`
-first: FastAPI serves `web/dist`. Re-run the USGS ingester with the production `TITILER_URL`. Geocoding uses Photon's
+One small VPS runs the `app` image (FastAPI serving the built UI), PostGIS and TiTiler; put a CDN in front of TiTiler,
+since tiles never change, and TLS in front of the app. Re-run the USGS ingester with the production `TITILER_URL`. Geocoding uses Photon's
 public instance (fair use); self-host Photon or use a commercial geocoder for real traffic.
 
 ## Tests

@@ -1,0 +1,16 @@
+.git
+.github
+.dev
+.venv
+.pytest_cache
+**/__pycache__
+*.egg-info
+data
+docs
+tests
+web/node_modules
+web/dist
+web/.dev
+.env
+CLAUDE.md
+.claude

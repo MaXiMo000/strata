@@ -17,5 +17,16 @@ services:
     environment: { PROJ_NETWORK: "ON" }
     volumes: ["./data/cogs:/data:ro"]
     profiles: ["tiles"]
+  # The app: API + built web UI on http://localhost:8000. Ingest with: docker compose run --rm app python -m strata.ingest usgs_topo
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://strata:strata@db:5432/strata
+      TITILER_URL: ${TITILER_URL:-http://localhost:8001}
+    ports: ["8000:8000"]
+    depends_on: [db]
+    volumes: ["cache:/app/data"]
+    profiles: ["app"]
 volumes:
   pg:
+  cache:
