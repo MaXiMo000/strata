@@ -138,6 +138,8 @@ h1 { margin: 0; max-width: 9ch; font: 300 var(--t-question) / .92 var(--serif); 
 /* minor ticks every 5 years, decades longer; labels sit under them in mono */
 .tick { position: absolute; top: 0; width: 1px; height: 6px; background: var(--hair); }
 .tick.major { height: 12px; background: color-mix(in srgb, var(--slate) 45%, transparent); } /* fade the tick, not its label */
+.tick.break { height: 12px; width: 4px; margin-left: -2px; background: none; border: solid color-mix(in srgb, var(--slate) 70%, transparent);
+  border-width: 0 1px; }
 .tick[data-label]::after { content: attr(data-label); position: absolute; top: 20px; left: 0; transform: translateX(-50%);
   font: 400 var(--t-label) var(--mono); letter-spacing: .08em; color: var(--slate); }
 /* notches: only where a map exists. They hang from the top edge like cuts in a rule. */

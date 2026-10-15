@@ -1,12 +1,16 @@
 // The ruler: a surveyor's scale with notches only where history exists, so the density of notches *is* the coverage.
 // Drag, click, or use the keys; it always lands on a year that has a map. An ARIA slider (README, Design).
 export type Describe = (year: number) => string;
+const SPLIT = 15;
 
 export class Ruler {
   private years: number[] = [];
   private year: number | null = null;
   private lo = 1800;
   private hi = 2030;
+  // When a few early maps would stretch the scale (one 1609 map squeezing 1850-1920 into a corner), the years before
+  // the knee share the first SPLIT% of the ruler and the dense years get the rest. null = one linear scale.
+  private knee: number | null = null;
   private track: HTMLElement;
   private notches = new Map<number, HTMLElement>();
 
@@ -38,6 +42,8 @@ export class Ruler {
     }
     this.lo = Math.floor(first / 10) * 10 - 10;
     this.hi = Math.min(2030, Math.ceil((last + 1) / 10) * 10 + 10);
+    const k = Math.floor((this.years[Math.floor(this.years.length * 0.1)] ?? first) / 10) * 10;
+    this.knee = (k - this.lo) / (this.hi - this.lo) > 0.25 ? k : null;
     if (interactive) {
       this.el.setAttribute("aria-orientation", "horizontal");
       this.el.setAttribute("aria-valuemin", String(first));
@@ -67,20 +73,44 @@ export class Ruler {
     return ahead[0] ?? (dir > 0 ? this.years.at(-1)! : this.years[0]!);
   }
 
-  private x = (year: number) => ((year - this.lo) / (this.hi - this.lo)) * 100;
+  /** Year -> position along the ruler, in percent. */
+  private x(year: number) {
+    const { lo, hi, knee } = this;
+    if (knee === null) return ((year - lo) / (hi - lo)) * 100;
+    return year <= knee ? ((year - lo) / (knee - lo)) * SPLIT : SPLIT + ((year - knee) / (hi - knee)) * (100 - SPLIT);
+  }
+
+  /** Position in percent -> year (the inverse of x). */
+  private yearAt(pct: number) {
+    const { lo, hi, knee } = this;
+    if (knee === null) return lo + (pct / 100) * (hi - lo);
+    return pct <= SPLIT ? lo + (pct / SPLIT) * (knee - lo) : knee + ((pct - SPLIT) / (100 - SPLIT)) * (hi - knee);
+  }
 
   private draw() {
     const width = this.el.clientWidth || 1;
-    const decades = (this.hi - this.lo) / 10;
-    // Label every decade if there's room for "1850" in mono at 10px (~40px), else every 20 or 50 years.
-    const every = [10, 20, 50, 100].find((s) => (width / decades) * (s / 10) >= 52) ?? 100;
     const frag = document.createDocumentFragment();
-    for (let y = this.lo; y <= this.hi; y += 5) {
-      const t = document.createElement("span");
-      t.className = y % 10 ? "tick" : "tick major";
-      t.style.left = `${this.x(y)}%`;
-      if (y % every === 0 && y > this.lo && y < this.hi) t.dataset.label = String(y);
-      frag.append(t);
+    // Each stretch of the scale gets its own tick and label spacing: labels need ~52px ("1850" in 10px mono).
+    const sections: [number, number][] = this.knee === null ? [[this.lo, this.hi]] : [[this.lo, this.knee], [this.knee, this.hi]];
+    for (const [a, b] of sections) {
+      const pxPerYear = ((this.x(b) - this.x(a)) / 100) * width / (b - a);
+      const every = [10, 20, 50, 100, 200].find((s) => pxPerYear * s >= 52) ?? 200;
+      const tick = pxPerYear * 5 >= 8 ? 5 : every / 2; // minor ticks only where they have room to read as ticks
+      for (let y = Math.ceil(a / tick) * tick; y < b || (b === this.hi && y <= b); y += tick) {
+        const t = document.createElement("span");
+        t.className = y % 10 ? "tick" : "tick major";
+        t.style.left = `${this.x(y)}%`;
+        if (y % every === 0 && y > this.lo && y < this.hi && !(this.knee !== null && Math.abs(y - this.knee) < every / 2)) // the break tick labels the knee
+          t.dataset.label = String(y);
+        frag.append(t);
+      }
+    }
+    if (this.knee !== null) {
+      // A double tick where the scale changes, the way a surveyor marks a broken axis.
+      const k = Object.assign(document.createElement("span"), { className: "tick break", title: `Scale changes at ${this.knee}` });
+      k.style.left = `${this.x(this.knee)}%`;
+      k.dataset.label = String(this.knee);
+      frag.append(k);
     }
     this.notches.clear();
     for (const y of this.years) {
@@ -98,7 +128,7 @@ export class Ruler {
 
   private nearest(clientX: number): number | null {
     const r = this.track.getBoundingClientRect();
-    const y = this.lo + ((clientX - r.left) / r.width) * (this.hi - this.lo);
+    const y = this.yearAt(((clientX - r.left) / r.width) * 100);
     return this.years.reduce<number | null>((best, c) => (best === null || Math.abs(c - y) < Math.abs(best - y) ? c : best), null);
   }
 
